@@ -1,0 +1,122 @@
+# makefile driver for chymera
+# SET SPECIFIC OPTIONS IN MAKEFILE.XX
+# NOTE FOR GCC: Set GOMP_STACKSIZE to some very large number.
+
+ include Makefile.DEFS
+ include $(MAKEFILE)
+
+ DOPT = -DPASSIVE=$(PASSIVE) -DVERBOSE=$(VERBOSE) -DPASSIVE_INIT=$(PASSIVE_INIT) -DFLUID=$(FLUID)\
+        -DWIGGLE=$(WIGGLE) -DEXTERNAL_POT=$(EXTERNAL_POT) -DFLUID_RESTART=$(FLUID_RESTART)\
+        -DWIGGLE_RESTART=$(WIGGLE_RESTART) -DROTATING=$(ROTATING) -DROTATING_SHIFT=$(ROTATING_SHIFT)
+
+ OBJ = 3dhyd-main.o fft.o flux.o\
+       housekeeping.o io.o misc.o\
+       pot3.o rad.o source.o\
+       state.o boundary.o blktri.o\
+       avisc.o hybrid.o initengtable.o\
+       CoolingPrescriptions.o RadTran.o\
+       ExternalPot.o
+
+ ifeq ($(FLUID),1)
+   FOBJ = fluid_mod.o fluid_start.o\
+          fluid_setup.o fluid_interp.o \
+          fluid_advance.o fluid_writeout.o\
+          fluid_restart.o interp_project.o\
+          interp.o
+ else
+   FOBJ =
+ endif 
+
+ ifeq ($(WIGGLE),1)
+    WOBJ = wiggle.o
+ else
+    WOBJ = 
+ endif
+
+ ifneq ($(PASSIVE),0)
+    POBJ = passive.o
+ else
+    POBJ = 
+ endif
+
+ ifeq ($(EXTERNALS),1)
+    EOBJ = ExternalRoutines.o
+ else
+    EOBJ = 
+ endif
+
+#*******************************************************************************
+#                           THE EXECUTABLES
+
+#--------------------  Serial versions  ----------------------------------------
+chymera-omp: dummy
+	@if [ $(ROTATING) -eq "0" ] ; then\
+         if [ $(ROTATING_SHIFT) -ne "0" ]; then\
+           echo 'FRAME MUST BE ROTATING BEFORE TRANSFORMATION IS ALLOWED';\
+           echo 'ROTATING IS SET TO ZERO WHILE ROTATING_SHIFT=1';\
+           exit 1;\
+         fi\
+        fi
+	make target "TARGET= $(EXEDIR)/chymera-omp" \
+ "FC=$(OMPF95)" "CFLAGS=$(CFLAGS) $(TARCH) $(DOPT)"  \
+ "CC=$(CC)"  \
+ "LFLAGS=$(LFLAGS)" \
+ "OBJ=$(OBJ) $(FOBJ) $(WOBJ) $(POBJ) $(EOBJ)"
+
+chymera-ser: dummy
+	@if [ $(ROTATING) -eq "0" ] ; then\
+         if [ $(ROTATING_SHIFT) -ne "0" ]; then\
+           echo 'FRAME MUST BE ROTATING BEFORE TRANSFORMATION IS ALLOWED';\
+           echo 'ROTATING IS SET TO ZERO WHILE ROTATING_SHIFT=1';\
+           exit 1;\
+         fi\
+        fi
+	make target "TARGET= $(EXEDIR)/chymera-ser" \
+ "FC=$(F95)" "CFLAGS=$(CFLAGS) $(TARCH) $(DOPT)"  \
+ "CC=$(CC)"  \
+ "LFLAGS=$(LFLAGS)" \
+ "OBJ=$(OBJ) $(FOBJ) $(WOBJ) $(POBJ) $(EOBJ)"
+
+target: $(OBJ)
+	$(FC) $(LFLAGS) -o $(TARGET) $(OBJ)
+
+dummy:
+
+clean:
+	-rm -f *.o 
+
+realclean:
+	-rm -f *.o *.mod *.lst chymera-omp chymera-ser
+
+
+########################################################################
+#  OBJECTS
+
+boundary.o: boundary.f
+	$(FC) $(CFLAGS) $(CONSERVEOPT) $(FFIXED) $(FINC) -c $<
+
+pot3.o: pot3.f
+	$(FC) $(CFLAGS) $(CONSERVEOPT) $(FFIXED) $(FINC) -c $<
+fft.o: fft.f
+	$(FC) $(CFLAGS) $(CONSERVEOPT) $(FFIXED) $(FINC) -c $<
+blktri.o: blktri.f
+	$(FC) $(CFLAGS) $(CONSERVEOPT) $(FFIXED) $(FINC) -c $<
+
+
+
+flux.o: flux.f
+	$(FC) $(CFLAGS) $(CONSERVEOPT) $(FFIXED) $(FINC) -c $<
+
+3dhyd-main.o: 3dhyd-main.f
+	$(FC) $(CFLAGS) $(CONSERVEOPT) $(FFIXED) $(FINC) -c $<
+
+# DO NOT OPTIMIZE BOUNDARY UNLESS OTHERWISE NOTED ON WIKI. ONLY GCC PROBLEM.
+
+%.o:%.f
+	$(F95) $(CFLAGS) $(FOPT) $(FFIXED) $(FINC) -c $<
+
+%.o:%.F
+	$(F95) $(CFLAGS) $(FOPT) $(FFREE) $(FINC) -c $<
+
+interp.o: interp.c
+	$(CC) $(COPT) $(CLINK) $(CINC) -c $<

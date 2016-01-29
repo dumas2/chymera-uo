@@ -1,0 +1,46 @@
+#!/bin/bash -l
+## Lines preceded by "#PBS" are directives for Torque/PBS
+## this line tells Torque the name of the batch job
+##
+#PBS -N jobname
+
+## this line tells Torque which queue to submit to
+## see /INFO/queues.txt for a description of available queues
+##
+#PBS -q fatnodes
+
+## resource list:
+##   1 node and 32 processors per node
+##   24 hrs
+##
+#PBS -l nodes=1:ppn=32
+#PBS -l walltime=24:00:00
+
+## directory list:
+##
+#PBS -d /home11/dumas2/CHYMERA/chymera-MPI
+#PBS -o /home11/dumas2/CHYMERA/chymera-MPI/run
+#PBS -e /home11/dumas2/CHYMERA/chymera-MPI/run
+
+## email
+##
+#PBS -m ea
+#PBS -M dumas2@uoregon.edu
+
+# load modules
+# see /INFO/modules-howto.txt for a mini-howto on Modules
+# module load intel/12.0.4
+# set stacksize 
+
+ulimit -s unlimited
+# limit stacksize unlimited
+# set stacksize for additional threads
+#export OMP_STACKSIZE=50000k
+# execute program
+#
+# WARNING, conv actually requires an odd number of processes,
+# uses one as master leaving (n-1) worker prcesses.
+#
+cd /home11/dumas2/CHYMERA/chymera-MPI/run
+./chymera-omp >outfile
+

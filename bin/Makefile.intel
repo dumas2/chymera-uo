@@ -1,0 +1,27 @@
+# makefile for the 3-D astrophysical hydrodynamics code.
+
+ F95        = ifort 
+ OMPF95     = ifort -openmp -r8 -threads -fpp -mcmodel=medium -heap-arrays 1024 -shared-intel
+
+# OMPF95     = ifort -openmp -threads -fpp -mcmodel medium -shared-intel
+ PREPROCESSOR = -fpp 
+
+ CFLAGS = 
+ TARCH  = 
+
+ ifeq ($(FLUID),1)
+   LFLAGS= -L/home/itp/acboley/lib64/lib -l gsl -l gslcblas
+   CINC += -I/home/itp/acboley/lib64/include
+ else
+   LFAGS=
+ endif
+
+ FOPT       = -r8 -O3 -g 
+ CONSERVEOPT= -r8 
+
+ FFREE = -free
+ FFIXED = -fixed
+
+ CC = icc
+ COPT = 
+ CLINK = 

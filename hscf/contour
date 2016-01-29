@@ -1,0 +1,17 @@
+reset 
+rhomax = 3.49e-3 
+# found this as 5th output in fort.93 
+#set terminal png
+#set output "contour.png"
+set contour
+set cntrparam levels incremental 1.0e-12,.1*rhomax,rhomax
+set size square
+set grid
+set mxtics
+set mytics
+set nosurface
+set view 0,0
+set data style lines
+set nokey
+splot 'fort.47'
+

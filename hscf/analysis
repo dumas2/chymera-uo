@@ -1,0 +1,37 @@
+set multiplot
+unset key
+nx=1; ny=5
+dx=0.07; dy=0.01; sx=0.8; sy=0.25
+set bmargin dy; set tmargin dx; set lmargin 6; set rmargin dy
+###--Bottom panel
+set size sx,sy
+set origin dx,dy+0.5*sy
+set nologscale y
+set key l b
+set xlabel 'R'
+set ylabel '{/Symbol W}'
+plot 'anal.dat' u 2:7 w lines t '{/Symbol W}'
+###--Middle panel
+set key default
+set origin dx,dy+1.6*sy
+unset xtics
+unset xlabel
+set ylabel 'm_c'
+set xtics
+set format x ""
+set xlabel " "
+unset logscale y
+unset key
+plot 'anal.dat' u 2:4 w dots
+###--Top panel
+set origin dx,dy+2.7*sy
+unset xtics
+unset xlabel
+set ylabel '{/Symbol r}'
+set xtics
+set format x ""
+set xlabel " "
+set logscale y
+plot 'anal.dat' u 2:3 w lines
+##
+unset multiplot

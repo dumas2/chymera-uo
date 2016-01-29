@@ -1,0 +1,38 @@
+Compile in the bin directory using make. 
+If all desired preprocessor switches are set, all one needs
+to do is type make in the bin directory.  Makefile is the main driver, and Makefile.*
+indicates the compiler of choice, where * is the desired compiler
+or computer.  Makefile should not need to be changed, but the
+compiler specific files may require minor adjustments to suit
+the user's needs. Makefile.DEFS contains default settings for
+precompiler switches. These include the following:
+
+ MAKEFILE= desired system/compiler
+ EXEDIR= placement of executable. Default ../run
+ WIGGLE= integrate star
+ WIGGLE_RESTART= restart star and integrate
+ FLUID= integrate fluid elements
+ FLUID_RESTART= restart and integrate fluid elements
+ PASSIVE= number of passively fluxed arrays. Zero shuts it off.
+ PASSIVE_INIT= initialize passive
+ VERBOSE= few implementations at the moment. Will be expanded
+ EXTERNAL_POT= include external potential source, e.g., the star
+ EXTERNALS= include external routines. Source code should go in patch.
+ BINARY= Turn on a binary potential. The default is a Roche potential
+ INDIRECT= Use an indirect potential.  This should be used instead of Wiggle, but feel
+           free to use Wiggle if a direct integration is needed
+ PARTICLE= Turn on particles
+
+Use a 0 to set a value to false, and 1 or larger to activate, unless
+a directory is desired. Note that you may see MAKEFILE?= blah in
+Makefile.DEFS.  Do not change these values; this checks to see whether
+an option is defined.  If it is not, it takes on the value blah. 
+Values can also be changed on the command line.  For example,
+
+ make MAKEFILE=Makefile.columbia WIGGLE=1 FLUID=1 PASSIVE=2
+
+will use options suitable for Columbia, integrate the star and
+fluid elements, and follow two passive arrays.
+
+Directories in the Makefile are relative to the bin directory.
+

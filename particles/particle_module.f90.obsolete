@@ -1,0 +1,216 @@
+      module particle
+      implicit none
+#include  "units.h"
+#include "hydroparam.h"
+#include "globals.h"  
+      
+      integer,paramter::NPARTICLE=10000
+      logical,dimension(NPARTICLE)::particle_skip
+
+      real*8,dimension(NPARTICLE)::r_p,z_p,angle_p 
+      real*8,dimension(NPARTICLE)::rr_p,zz_p,aangle_p 
+      real*8,dimension(NPARTICLE)::vr_p,vz_p,omega_p
+      real*8,dimension(NPARTICLE)::radius_p
+
+
+      contains
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      subroutine initialize_particles() 
+      implicit none
+
+      integer::NF,N,J,K,L,I
+      real*8::dev_r,tmass
+
+      logical,allocatable(:)::flag
+      integer,allocatable(:)::JCELL,KCELL,LCELL
+      real*8, allocatable(:)::mass_cell
+
+      
+      !-----------------------
+      ! calculate mass in cell
+      !-----------------------
+      N=0
+      do L = 1, LMAX
+        do K = 2, KMAX1
+          do J = 2, JMAX1
+            if(rho(J,K,L)>limiter)then
+                N=N+1
+                tmass=tmass+rho(J,K,L)*rhf(J)*rof3n*zof3n*dphi ! only half mass
+             endif
+          enddo
+        enddo
+      enddo
+      print *," Half mass for placing particles is ",tmass
+
+      allocate(jcell(N)    )
+      allocate(kcell(N)    )
+      allocate(lcell(N)    )
+      allocate(flag(N)     )
+      allocate(mass_cell(N))
+
+      I=1
+      do L = 1, LMAX
+        do K = 2,KMAX1
+          do J = JMIN,JMAX1
+            if(rho(J,K,L)>limiter)then
+              jcell(I)=J
+              kcell(I)=K
+              lcell(I)=L 
+              flag(I)=.true.
+              mass_cell(I)=rho(J,K,L)*rhf(J)*rof3n*zof3n*dphi
+              I=I+1
+            endif
+          enddo
+        enddo
+      enddo
+         
+      SEED=0
+      NF=NPARTICLE
+      do while(NF>0)
+        do I=1,N
+           dev_r= (ran4(SEED)); SEED=SEED+1
+           if(dev_r<mass_cell(I)/tmass)then
+              dev_r= (ran4(SEED)); SEED=SEED+1
+              r_p(NF)=r(jcell(I))+dev_r*rof3n
+              z_p(NF)=z(kcell(I))+dev_r*zof3n
+              angle_p(NF)=dtheta*(dev_r+lcell(I)-1)
+              particle_skip(NF)=.false.
+              NF=NF-1
+           endif 
+        enddo
+      enddo
+      deallocate(jcell,kcell,lcell,flag,mass_cell)
+
+      return
+      end subroutine intialize_particles()
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      subroutine update_particle_vel(dt)
+      implicit none
+
+      integer::thisJ,thisK,thisLlow,thisLhi,thisL,I
+      real*8::dt,acc,frbottom,frtop,fzbottom,fztop,fabottom,fatop
+  
+      do I=1,NPARTICLE
+
+         if(particle_skip)cycle
+
+         thisJ=int(r_p(I)/rof3n)+2
+         thisK=int(z_p(I)/zof3n)+2
+         thisL=int(angle_p(I)/dtheta)+1 
+
+         vr_p(I)=u(thisJ,thisK,thisL)
+
+         vz_p(I)=w(thisJ,thisK,thisL)
+
+         omega_p(I)=omega(thisJ,thisK,thisL)
+
+      enddo 
+      return
+      end subroutine update_particle_pos
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      subroutine update_particle_vel(dt)
+      implicit none
+
+      integer::thisJ,thisK,thisLlow,thisLhi,thisL,I
+      real*8::dt,acc,frbottom,frtop,fzbottom,fztop,fabottom,fatop
+  
+      do I=1,NPARTICLE
+
+         if(particle_skip)cycle
+
+         thisJ=int(r_p(I)/rof3n)+2
+         thisK=int(z_p(I)/zof3n)+2
+         thisL=int(angle_p(I)/dtheta)+1 
+         thisLlow=thisL-1
+         thisLhi =thisL+1
+         if(thisLlow<1  )thisLlow=LMAX
+         if(thisLhi>LMAX)thisLhi =1
+      
+         frbottom=-(phi(thisJ,thisK,thisL)-phi(thisJ-1,thisK,thisL))
+     &           /rof3n
+         frtop   =-(phi(thisJ+1,thisK,thisL)-phi(thisJ,thisK,thisL))
+     &           /rof3n
+         fzbottom=-(phi(thisJ,thisK,thisL)-phi(thisJ,thisK-1,thisL))
+     &           /zof3n
+         fztop   =-(phi(thisJ,thisK+1,thisL)-phi(thisJ,thisK,thisL))
+     &           /zof3n
+         fabottom=-(phi(thisJ,thisK,thisL)-phi(thisJ,thisK,thisLlow))
+     &           /(dtheta*rhf(thisJ))
+         fatop   =-(phi(thisJ,thisK,thisLhi)-phi(thisJ,thisK,thisL))
+     &           /(dtheta*rhf(thisJ))
+ 
+         acc=frbottom+(frtop-frbottom)*(r_p(I)-r(thisJ))/rof3n
+     &      +r_p(I)*omega_p(I)**2 
+         vr_p(I)=vr_p(I)+acc*dt
+
+         acc=fzbottom+(fztop-fzbottom)*(z_p(I)-z(thisK))/zof3n
+         vz_p(I)=vz_p(I)+acc*dt
+
+         acc=fabottom+(fatop-fabottom)*(angle_p(I)-dble(thisJ)*dtheta)
+     &      /(dtheta)
+         omega_p(I)=omega_p(I)+acc*dt
+
+      enddo 
+      return
+      end subroutine update_particle_vel
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      subroutine update_particle_pos(dt)
+      implicit none
+
+      integer :: I
+      real*8::dt 
+
+      do I=1,NPARTICLE
+
+       if(particle_skip)cycle
+ 
+       r_p(I)=r_p(I)+vr_p(I)*dt
+       z_p(I)=z_p(I)+vz_p(I)*dt
+       angle_p(I)=angle_p(I)+omega_p(I)*dt
+
+       !----------------------
+       ! boundary condtion
+       !----------------------  
+       if(z_p(I)<zero)then
+          z_p(I)=-z_p(I)
+          vz_p(I)=-vz_p(I)
+       endif 
+
+      enddo
+      return
+      end subroutine update_particle_pos
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      subroutine clean_particles
+      implicit none
+
+      integer::I
+
+      do I=1,NPARTICLE
+
+        if(r_p(I)>r(JMAX1))particle_skip=.true.
+        if(z_p(I)>z(KMAX1))particle_skip=.true.
+
+      enddo 
+      return
+      end subroutine clean_particles
+
+
+      end module

@@ -1,0 +1,230 @@
+* COMPILE contains information on compiling the code.
+* VERSION discusses some of the code's structure, capabilities, and updates over time.
+
+* THIS README FILE contains a quick HOW-TO for running the code.  
+
+o Quick basics:
+
+  * The main arrays over the computational volume are given ordered
+    ARRAY(JMAX2,KMAX2,LMAX) for JMAX=Max R zones, KMAX= Max Z zones
+    and LMAX=Max azimuthal zones.  JMAX2=JMAX+2, etc., which takes 
+    into account ghost cells.  J=2 is the first radial cell and 
+    JMAX1 (JMAX+1) is the last radial cell on the computational volume.
+    J=1 and JMAX2 are boundary ghost cells.  Likewise for K. 
+
+  * S = radial momentum density
+  * T = vertical momentum density
+  * A = angular momentum density
+  * rho = mass volume density
+  * eps = internal energy volume density
+
+  * S,T are face-centered. A,rho,eps are all cell-centered.
+
+  * U,W,OMEGA are the radial, vertical, and azimuthal velocity components,
+    where OMEGA is the azimuthal speed. They have the same centering as the
+    corresponding momenta.
+
+  * R,Z = face-zeroed quantities.  R(2) = 0, and R(3) = rof3n, where rof3n
+    and zof3n are the radial and vertical cell sizes. 
+
+  * rhf and zhf are the cell-centered radial and vertical quantities.  
+    rhf(2)= half*rof3n
+
+  * Loops are ordered L,K,J.  J is the fastest iterator as a result, which
+    is optimal for FORTRAN arrays (column-major).
+
+  * Source gives force and dissipation/cooling terms.
+
+  * Flux takes care of the advective terms.
+
+  * Evolution: 1/2 source -> 1/2 Flux -> full Flux with updated values 
+     -> Potential update -> 1/2 source with updated values.
+
+o The header files, along with pre-compiler options, control the functionality of the code.
+  
+  * units.h contains the cooling switches, equation of state options, data files names,
+    and definitions of constants.  
+
+  * globals.h declares global variables and common blocks.  In an updated version of the code,
+    modules will be used instead.  For now, common blocks will need to suffice.
+
+  * hydroparams.h contains the size of the arrays, defining JMAX,KMAX, and LMAX.  POT3JMAX and
+    POT3KMAX are also defined for the potential solver.  The potential grid need not be the 
+    same size as the rest of the grid, but it cannot be smaller than JMAX,KMAX.  Usually, they
+    are set to the same size.  A large potential volume may be desired for some problems to
+    minimize boundary value problems.  JMIN sets the inner boundary of the system. If JMIN=2,
+    the entire grid is active.  For JMIN>2, radii with J<JMIN are not included in the calculation.
+    Any mass that flows through the inner grid is either added to the central potential or 
+    simply discarded. The default is to assume a central potential is used and to add that mass
+    to the potential. The rest of the values in hydroparams.h should not be changed.
+
+
+o Upon compiling the code, the executable (default 'chymera-omp') will be in the run directory.
+  This directory also contains all dat files for table reads, and will need to contain the 
+  files fort.5 and fort.7.  
+
+  * fort.5 is the basic readin file. It controls the code output and simulation steps. This
+    will be changed to a user-friendly namelist readin formation, but as of now, we need to 
+    deal with an input file based on coding during code antiquity. The top of the file is 
+    shown below.
+
+### CODE ###
+
+          1.0E0      1.5E0
+      1.666666666666667E0 
+000000 010000 001000 000003 000001 000001 010000 000000 
+          9.0e0      0.0e0
+
+THE DATA AREIN THIS ORDER:
+KONST PINDEX
+GAMMA
+ITSTRT,ITSTOP,IDIAG,ISOADL,ITYPE,NMODL,ISTOR,IGRID, 
+NPRIME (=9 for ISO)
+
+### END CODE ###
+
+    Some description is given in the fort.5 file.  The main things to note are the following:
+      o KCONST (p=KCONST rho^(1+1/n)) and the polytropic index n.   
+      o GAMMA = 1+1/n = adiabatic index
+      o Iteration start, iteration stop, diagnostic output, ISOADL=3 (do not change), 
+        initial model type, NMODL=1 (do not change), output store, IGRID=0 (do not change).
+      o Last line is obsolete, but keep it in until the readin has been updated. Do not change.
+
+    Iteration start is the first iteration the code will take, and the stop is the last iteration.
+    This is just for any given stretch.  Diagnostic writes will be made every IDIAG, including
+    density and temperature dumps.  Restart files and very large files for complete diagnostics 
+    will be dumped every ISTOR.  Be careful with the selection of ISTOR, as too frequent dumps
+    can lead to excessive data demands.
+
+    ITYPE describes the model readin.  ITYPE=1 is used for a restart without any modification. 
+    ITYPE=98 reads in the file, but then adds a random density perturbation with an amplitude
+    given by amp0 set in units.h (headers directory). ITYPE=99 reads in an LMAX=8 model and 
+    expands it to the LMAX given in hydroparams.h.
+
+  * fort.7 is the restart file.  Output from the code saved.* can be copied to fort.7 as a new
+    readin.  When the input controls are converted to namelist files, the user will have the
+    option of giving a name for the restart file to avoid the copying hastle.  Copying is in 
+    place for now, though.
+
+o ANALYSIS DIRECTORY
+
+  * A variety of analysis tools are available for streamlining images and movie production. All
+    fortran code can usually be compiled with gfortran -o blah blah.f90 -frecord-marker=4.
+    Be sure to mind the endianness, as well as what the compiler is actually doing with record
+    marker length.
+      o sigplot.f90 makes surface density plots from code output.  Run ./sigplot to get instructions
+        how to run the code. For example:
+
+### TERMINAL SESSION ###
+cfe2.aboley 74> ./sigplot
+ A CHYMTOOL SPONSORED EVENT
+  
+  
+ sigplot v 1. 11.10.2007. Nora Bolig
+  
+  
+ SIGPLOT USAGE: sigplot {stepbegin} {stepend} {stepskip}
+                        {jmax} {kmax} {lmax} {torp} {dz}
+                        {cell-to-size unit conversion  }
+                        {min surface density background}
+                        {code to cgs surfden conversion}
+                        {filein prefix} {fileout prefix}
+  
+  
+ Calling Cthulu...(run)
+
+### END TERMINAL ###
+    
+        For AU units, i.e., the default with G=1, AU=1, and Msun=1, torp = 0.159 to convert code
+        output to years. Any value can be given for torp, for example, the ORP conversion.
+        dz = cell-to-size unit conversion for AU units, but could be different for other units.
+        The code will work in log units and give output in surface density cgs log10.  For min
+        surface density, give a small number in log10 (e.g., -18.).  For AU units, cgs surfden 
+        conversion is about 8.9e6.  Filein should be a rho3d file. An example of correct syntax is
+
+### TERMINAL SESSION ###
+./sigplot 100000 100001 10 256 64 512 0.159 0.1 0.1 -18. 8.9e6 ../run/rho3d. sig.
+### END TERMINAL ###
+
+        where the cell sizes are 0.1 AU. The output file sig.100000 will have X, Y, and 
+        V, where V is log10(surface density).  These can be plotted with python scripts
+        or most simply with gunplot
+
+### GNUPLOT SESSION ###
+
+gnuplot>f="sig.100000"
+gnuplot>plot f w image
+
+### END GNUPLOT ###
+
+        Many files can be made at once using makesig.sh. This is just a template, and may need some
+        modification for limits, etc., for any given use.  makeimage.py is likely more understandable,
+        but makesig.sh works with just gnuplot and tcsh.
+
+      * midplot.f90 plots midplane density or temperature values, and is used analogously to sigplot.f90.  
+        Many of the other tools follow similar patterns. The scale is linear for midplot.
+
+      * Many other tools are available.  Many of them are given with the current distribution, but
+        documentation is still being made.  When all else fails, look at the source code.  Most tools give
+        some hint how to use them by running them without any command line input.
+
+o Your first disk simulation.
+
+      * Simulation ICs are available for users through github. For your first run, consider the ICs in
+        CHYMERA-CODE-IC-1. Do the following, assuming PWD=$CHYMERA_HOME, where CHYMERA_HOME is the directory 
+        where you can see bin, run, radhydro, etc. I'm also assuming the CHYMERA-CODE-IC-1 is available in 
+        the $HOME directory, but this can be anywhere of the user's choosing.
+          1). Copy $HOME/CHYMERA-CODE-IC-1/ic.dat to run/fort.7
+          2). Copy $HOME/CHYMERA-CODE-IC-1/fort.5 to run/.
+          3). Copy $HOME/CHYMERA-CODE-IC-1/units.h to headers/.
+             -> Note that placing header files in the patch directory will not work at the moment. I'm
+                aware fo the issue and working on it.
+          4). Copy $HOME/CHYMERA-CODE-IC-1/hydroparam.h to headers/.
+          5). Copy $HOME/CHYMERA-CODE-IC-1/Makefile.DEFS to bin/.
+          6). cd bin
+          7). make
+             -> The code fort.7 file is binary, little endian.  If you have a big endian machine, before
+                running the code type
+                
+                  export GFORTRAN_CONVERT_UNIT="little_endian"
+
+                for bash.  
+
+             -> If you are using a compiler other than gcc, adjustments will need to be made.
+
+          8). cd ../run
+          9). ./chymera-omp
+          10). When finished, you will have files to analyze.
+          11). cd ../analyze
+          12). Make sure sigplot and midplot have been compiled.
+          13). ./midplot 10 11 10 512 64 256 0.159 0.167 0.167 3. 1. ../run/temperat3d. tk_
+          14). ./sigplot 10 11 10 512 64 256 0.159 0.167 0.167 -18. 8.9e6 ../run/rho3d. sig_ 
+          15). python makeimage.py
+          16). xv png/sig_000010.png
+          17). Make edits in makeimage.py to analyze temperature next, and look at the tk image
+               along with time sig image.
+
+      * A few notes on image files:
+          1). rslts.* contain lots of output regarding the simulation. It is in ascii format.
+          2). gamma1.* contain the adiabatic index. This is only needed for variable gamma sims.
+          3). coolheat_full.* big file containing output regarding heating terms and optical depths
+          4). saved.* restart files.  
+          5). massflow.* files tracking mass flow on and off the grid, as well as accretion onto a
+              central object if used.
+          6). rho3d.* volume density output
+          7). temperat3d.* temperature output
+          8). There are other files.  Some are uesful, others are not.  I am trying to clean this up.
+
+      * Known issues
+          1). Mind the stack size limits.  If the code has an immediate segfault, the stack size might
+              be too small.  Increase using the commands "ulimit" in bash and "limit" in (t)csh. 
+
+Contact me if you have questions.
+
+
+
+
+
+
+
+ 

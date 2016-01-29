@@ -1,0 +1,25 @@
+# makefile for the 3-D astrophysical hydrodynamics code.
+
+ OMPF95     = pgf95 -mp
+ F95        = pgf95
+ PREPROCESSOR = -Mpreprocess
+
+ CFLAGS = 
+ TARCH = -byteswapio -mcmodel=medium 
+
+ ifeq ($(FLUID),1)
+   LFLAGS= -L/home/itp/acboley/lib64/lib -l gsl -l gslcblas
+   CINC += -I/home/itp/acboley/lib64/include
+ else
+   LFLAGS= -L./ -lnuma
+ endif
+
+ FOPT = -r8 -O3 $(PREPROCESSOR) 
+ CONSERVEOPT = -r8 -O3 $(PREPROCESSOR) 
+
+ FFREE      = -Mfree
+ FFIXED     = -Mfixed
+
+ CC    = gcc
+ COPT  =-g 
+ CLINK = 

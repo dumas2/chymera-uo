@@ -1,0 +1,670 @@
+      module particle
+      implicit none
+#include  "units.h"
+#include "hydroparam.h"
+#include "globals.h"  
+
+      logical,save::read_particle_file=.true.
+      integer,save::P_FILEID=0
+      
+      integer,save::NPARTICLE=100000
+      logical,save,allocatable,dimension(:)::particle_skip
+
+      real*8,save,allocatable,dimension(:)::r_p,z_p,angle_p ,mass_p
+      real*8,save,allocatable,dimension(:)::vr_p,vz_p,omega_p,jn_p
+
+
+      contains
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      subroutine set_particle_vel()
+
+      integer::thisj,thisk,thisllow,thislhi,thisl,I
+      real*8::tmp,ran4,mag
+  
+      do i=1,nparticle
+
+         if(particle_skip(I))cycle
+
+         thisj=int(r_p(i)/rof3n)+2
+         thisk=int(z_p(i)/zof3n)+2
+         thisl=int(angle_p(i)/dtheta)+1 
+
+         omega_p(i)=sqrt(mass_star/r_p(i)**3)
+         jn_p(I)=r_p(i)**2*omega_p(i)
+
+         tmp=(two*ran4(i) -one)
+         mag=0.01*ran4(i)
+         if(tmp/=zero)then
+           vr_p(i)=abs(tmp)/tmp*mag*omega_p(i)*r_p(i)
+           vz_p(i)=abs(tmp)/tmp*mag*omega_p(i)*r_p(i)
+         else
+           vz_p(i)=zero
+           vr_p(i)=zero
+         endif 
+
+
+      enddo 
+      return
+      end subroutine set_particle_vel
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+      subroutine initialize_particles() 
+
+      integer::SEED
+      integer*8::N,NF,J,K,L,I,ITER,NSTART
+      real*8::dev_r,tmass,ran4,limiter,max_cell_mass
+
+
+      logical,allocatable,dimension(:)::flag
+      integer,allocatable,dimension(:)::JCELL,KCELL,LCELL
+      real*8, allocatable,dimension(:)::mass_cell
+
+      limiter=den*phylim*1d6
+
+      allocate(r_p    (NPARTICLE))
+      allocate(z_p    (NPARTICLE))
+      allocate(angle_p(NPARTICLE))
+      allocate(mass_p (NPARTICLE))
+      allocate(vr_p   (NPARTICLE))
+      allocate(vz_p   (NPARTICLE))
+      allocate(omega_p(NPARTICLE))
+      allocate(jn_p   (NPARTICLE))
+
+      allocate(particle_skip(NPARTICLE))
+      
+      !-----------------------
+      ! calculate mass in cell
+      !-----------------------
+      N=0
+      tmass=zero
+      do L = 1, LMAX
+        do K = 2, KMAX1
+          do J = 2, JMAX1
+            if(rho(J,K,L)>limiter)then
+                N=N+1
+                tmass=tmass+rho(J,K,L)*rhf(J)*rof3n*zof3n*dtheta ! only half mass
+             endif
+          enddo
+        enddo
+      enddo
+      print *," Half mass for placing particles is ",tmass
+
+      allocate(jcell(N)    )
+      allocate(kcell(N)    )
+      allocate(lcell(N)    )
+      allocate(flag(N)     )
+      allocate(mass_cell(N))
+
+      I=1
+      max_cell_mass=zero
+      do L = 1,LMAX
+        do K = 2,KMAX1
+          do J = JMIN,JMAX1
+            if(rho(J,K,L)>limiter)then
+              jcell(I)=J
+              kcell(I)=K
+              lcell(I)=L 
+              flag(I)=.true.
+              mass_cell(I)=rho(J,K,L)*rhf(J)*rof3n*zof3n*dtheta
+              max_cell_mass=max(max_cell_mass,mass_cell(I))
+              I=I+1
+            endif
+          enddo
+        enddo
+      enddo
+         
+      SEED=0
+      NF=NPARTICLE
+      do while(NF>0)
+        ITER=ran4(seed)*N
+        I=ITER;if(ITER>N)I=I-N
+        dev_r= (ran4(SEED)); SEED=SEED+1
+        if(dev_r<mass_cell(I)/tmass)then
+            mass_p(NF)=dust_to_gas*tmass/dble(NPARTICLE)
+            dev_r= (ran4(SEED)); SEED=SEED+1
+            !print *, dev_r*rof3n,r(jcell(I))+dev_r*rof3n
+            r_p(NF)=r(jcell(I))+dev_r*rof3n
+            dev_r= (ran4(SEED)); SEED=SEED+1
+            z_p(NF)=z(kcell(I))+dev_r*zof3n
+            dev_r= (ran4(SEED)); SEED=SEED+1
+            angle_p(NF)=dtheta*(dev_r+dble(lcell(I)-1))
+            particle_skip(NF)=.false.
+            NF=NF-1
+         endif 
+      enddo
+!      r_p(1)=r(jmin+10)+.1*rof3n
+!      z_p(1)=z(4)+.1*zof3n
+!      angle_p(1)=.5*dtheta
+      deallocate(jcell,kcell,lcell,flag,mass_cell)
+      call set_particle_vel() 
+
+      return
+      end subroutine initialize_particles
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      subroutine update_particle_vel(dt)
+
+      integer::thisJ,thisK,thisLlow,thisLhi,thisL,I
+      real*8::dt,frbottom,frtop,fzbottom,fztop,fabottom,fatop
+      real*8::accr,accz,acca,jn
+
+      do I=1,NPARTICLE
+
+         if(particle_skip(I))cycle
+
+         thisJ=int(r_p(I)/rof3n)+2
+         thisK=int(z_p(I)/zof3n)+2
+         thisL=int(angle_p(I)/dtheta)+1 
+         thisLlow=thisL-1
+         thisLhi =thisL+1
+         if(thisLlow<1  )thisLlow=LMAX
+         if(thisLhi>LMAX)thisLhi =1
+      
+         frbottom=-(phi(thisJ,thisK,thisL)-phi(thisJ-1,thisK,thisL))
+     &           /rof3n
+         frtop   =-(phi(thisJ+1,thisK,thisL)-phi(thisJ,thisK,thisL))
+     &           /rof3n
+         fzbottom=-(phi(thisJ,thisK,thisL)-phi(thisJ,thisK-1,thisL))
+     &           /zof3n
+         fztop   =-(phi(thisJ,thisK+1,thisL)-phi(thisJ,thisK,thisL))
+     &           /zof3n
+         fabottom=-(phi(thisJ,thisK,thisL)-phi(thisJ,thisK,thisLlow))
+     &           /(dtheta)
+         fatop   =-(phi(thisJ,thisK,thisLhi)-phi(thisJ,thisK,thisL))
+     &           /(dtheta)
+ 
+         accr=frbottom+(frtop-frbottom)*(r_p(I)-r(thisJ))/rof3n
+     &      +r_p(I)*omega_p(I)**2
+
+         accz=fzbottom+(fztop-fzbottom)*(z_p(I)-z(thisK))/zof3n
+
+         acca=fabottom+(fatop-fabottom)
+     &      *(angle_p(I)-dble(thisL-1)*dtheta)
+     &      /(dtheta) 
+
+         jn_p(I)=jn_p(I)+acca*dt
+         vr_p(I)=vr_p(I)+accr*dt
+         vz_p(I)=vz_p(I)+accz*dt
+
+      enddo 
+      return
+      end subroutine update_particle_vel
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      subroutine update_particle_pos(dt)
+
+      integer :: I
+      real*8::dt 
+
+      do I=1,NPARTICLE
+
+       if(particle_skip(I))cycle
+ 
+       r_p(I)=r_p(I)+vr_p(I)*dt
+       if(r_p(I)/=zero)then
+         omega_p(I)=jn_p(I)/r_p(I)**2
+       else
+         omega_p(I)=zero
+       endif
+       z_p(I)=z_p(I)+vz_p(I)*dt
+       angle_p(I)=angle_p(I)+omega_p(I)*dt
+
+       !----------------------
+       ! boundary condtion
+       !----------------------  
+       if(z_p(I)<zero)then
+          z_p(I)=-z_p(I)
+          vz_p(I)=-vz_p(I)
+       endif 
+       if(r_p(I)<zero)then
+          r_p(I)=-r_p(I)
+          vr_p(I)=-vr_p(I)
+          angle_p(I)=angle_p(I)+pi
+       endif
+       if(angle_p(I)>two*pi)then
+          angle_p(I)=angle_p(I)-two*pi
+       endif
+       if(angle_p(I)<zero)then
+          angle_p(I)=angle_p(I)+two*pi
+       endif
+
+      enddo
+      return
+      end subroutine update_particle_pos
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      subroutine clean_particles
+
+      integer::I
+
+      do I=1,NPARTICLE
+
+        if(angle_p(I)<zero)angle_p(I) = angle_p(I)+two*pi
+        if(angle_p(I)>two*pi)angle_p(I) = angle_p(I)-two*pi
+        if(z_p(I)<zero)then
+          z_p(I)=-z_p(I)
+          vz_p(I)=-vz_p(I)
+        endif 
+        if(r_p(I)>r(JMAX1))particle_skip(I)=.true.
+        if(z_p(I)>z(KMAX1))particle_skip(I)=.true.
+
+      enddo 
+      return
+      end subroutine clean_particles
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      subroutine set_particle_density()
+
+      integer::thisj,thisk,thisL,I
+      rhotot=rho
+  
+      do i=1,NPARTICLE
+
+         if(particle_skip(I))cycle
+
+         thisj=int(r_p(i)/rof3n)+2
+         thisk=int(z_p(i)/zof3n)+2
+         thisl=int(angle_p(i)/dtheta)+1 
+
+!         print *, thisj,thisk,thisl,I
+!         print *,r_p(I),z_p(I),angle_p(I),mass_p(I) 
+
+         rhotot(thisj,thisk,thisl)=rhotot(thisj,thisk,thisl)
+     &     + mass_p(I)/(rof3n*zof3n*rhf(thisj)*dtheta)
+
+      enddo 
+      return
+      end subroutine set_particle_density
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+      subroutine particle_timestep(tmin)
+
+      integer::I
+      real*8::tmin
+
+      tmin=1d6
+      do I=1,NPARTICLE
+
+        if(particle_skip(I))cycle
+         
+        if(omega_p(I)/=zero)then
+           tmin=min(tmin,one/abs(omega_p(I))*.001)
+           tmin=min(tmin,dtheta/abs(omega_p(I))*.1)
+        endif
+        if(vz_p(I)/=zero)then
+           tmin=min(tmin,zof3n/abs(vz_p(I))*.1)
+        endif
+        if(vr_p(I)/=zero)then
+           tmin=min(tmin,rof3n/abs(vr_p(I))*.1)
+        endif
+
+      enddo
+      return
+      end subroutine particle_timestep
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      subroutine dump_particles(INDX)
+
+      integer::INDX,I
+      character::cindex*6,outfile*15
+
+      write(cindex,'(i6.6)')INDX
+      outfile="particle."//cindex
+      open(unit=176,FILE=outfile)
+      do I=1,NPARTICLE
+        write(176,'(I6,7(1X,1pe15.8),1X,L)')I,r_p(I),z_p(I),angle_p(I),
+     &     vr_p(I),vz_p(I),jn_p(I),mass_p(I),particle_skip(I)
+      enddo
+      close(176)
+      return
+      end subroutine dump_particles
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      subroutine read_particles(INDX)
+
+      integer::INDX,I,II,file_eof
+      logical::check_particle
+      character::cindex*6,infile*15,dum*119
+
+      write(cindex,'(i6.6)')INDX
+      infile="particle."//cindex
+      open(unit=176,FILE=infile)
+      II=0
+      do while (.true.)
+        read(176,'(A119,L)',iostat=file_eof)dum,check_particle
+        if(file_eof<0)exit
+        if(.not.check_particle)II=II+1
+      enddo
+      rewind(176)
+      print *, "Found ",II," particles in file ",infile
+      NPARTICLE=II
+
+      allocate(r_p    (NPARTICLE))
+      allocate(z_p    (NPARTICLE))
+      allocate(angle_p(NPARTICLE))
+      allocate(mass_p (NPARTICLE))
+      allocate(vr_p   (NPARTICLE))
+      allocate(vz_p   (NPARTICLE))
+      allocate(omega_p(NPARTICLE))
+      allocate(jn_p   (NPARTICLE))
+
+      allocate(particle_skip(NPARTICLE))
+       
+      do I=1,NPARTICLE
+       read(176,'(I6,7(1X,1pe15.8),1X,L)')II,r_p(I),z_p(I),angle_p(I),
+     &    vr_p(I),vz_p(I),jn_p(I),mass_p(I),particle_skip(I)
+       if(r_p(I)>zero)then
+         omega_p(I)=jn_p(I)/r_p(I)**2
+       else
+         omega_p(I)=zero
+       endif 
+      enddo
+      close(176)
+      return
+      end subroutine read_particles
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      subroutine clean_stop_particles()
+
+      deallocate(r_p,z_p,angle_p,mass_p,vr_p,vz_p,omega_p,jn_p)
+      deallocate(particle_skip)
+
+      end subroutine clean_stop_particles
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      real*8 function updateDvWithDrag
+     &       (dv,kn,csound,rhogas,rhoa,asize,dt)
+      IMPLICIT none
+      real*8::dv,kn,csound,rhogas,rhoa,asize,mach,kd,Re
+      real*8::beta2,beta,alpha,dt,BB,dv_eps,dv_sto,magDv,PQ,PQINV
+      real*8,parameter::zero=0d0,one=1d0,three=3d0,eight=8d0,nine=9d0
+      real*8,parameter::two=2d0,pi=3.141592653589793d0
+
+
+            if(dv==zero)then
+              updateDvWithDrag=zero
+              return
+            endif
+            magDv=abs(dv)
+            mach=magDv/csound
+            Re=three*sqrt(pi/eight)*mach/kn
+!!!            kd=getKdFromRe(Re)
+            beta2=128d0*csound**2/(nine*pi)
+            beta=sqrt(beta2)
+            alpha=rhogas*csound/(rhoa*asize)*sqrt(eight/pi)
+            BB=beta+sqrt(dv**2+beta2)
+            dv_eps=two*BB*dv*beta*exp(-alpha*dt)
+     &            /(BB*BB-dv**2*exp(-two*alpha*dt))
+
+!!!!!!!!! NOW WORK ON THE STOKES LIMIT
+
+            if(Re<=500d0)then
+              PQ=0.687d0
+              PQINV=one/PQ
+              beta=0.15d0*(three*sqrt(8/pi)/(csound*Kn))**PQ
+              dv_sto=exp(-three*alpha*kn*dt)
+              if (dv_sto>zero)then
+                dv_sto=dv_sto/( (beta*magDv**PQ+one)*magDv**(-PQ)
+     &                -beta*exp(-three*PQ*alpha*kn*dt))**PQINV
+              endif
+              dv_sto=dv_sto*magDv/dv
+
+            elseif(Re<=1500d0)then
+              PQ=2.4d0
+              PQINV=one/PQ
+              beta=3d-6*(three*sqrt(8/pi)/(csound*Kn))**PQ
+              dv_sto=(magDv**(-PQ)+7.2d0*Kn*alpha*beta*dt)
+     &              **(-PQINV)*dv/magDv
+            else
+               dv_sto=dv/(one+magDv*0.99d0*sqrt(eight/pi)
+     &               *alpha/csound*dt)
+            endif
+
+            updateDvWithDrag=dv_eps*(three*kn)**2/((three*kn)**2+one)
+     &            +one/((three*kn)**2+one)*dv_sto
+
+      return
+
+      end function updateDvWithDrag
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      subroutine account_for_drag(dt)
+     
+      integer:: I,thisj,thisk,thisl,thisLlow,thisLhi
+
+      real*8::kn,Ugas,Wgas,Ogas,oldTotmom,oldGasmom,Gasmom,ftop,fbottom
+      real*8::new_vel,new_dv_a,new_dv_r,new_dv_z,limiter
+      real*8:: dv_r,dv_a,dv_z,dustRho,csound1,Olow,Ohi,dt
+
+      logical::trigger=.false.
+  
+      limiter=den*phylim
+      do I=1,NPARTICLE
+
+       if(particle_skip(I))cycle
+
+       thisj=int(r_p(i)/rof3n)+2
+       thisk=int(z_p(i)/zof3n)+2
+       thisl=int(angle_p(i)/dtheta)+1 
+       thisLlow=thisL-1
+       thisLhi =thisL+1
+       if(thisLlow<1  )thisLlow=LMAX
+       if(thisLhi>LMAX)thisLhi =1
+
+       if(rho(thisj,thisk,thisl)<limiter)cycle
+
+      !-------------------------
+      ! get velocity differences
+      !-------------------------
+
+       Ugas= (s(thisj,thisk,thisl)*(rof3n-r_p(I)+r(thisj))/rof3n +
+     &        s(thisj+1,thisk,thisl)*(r_p(I)-r(thisj))/rof3n) /
+     &        rho(thisj,thisk,thisl)
+
+       Wgas= (t(thisj,thisk,thisl)*(zof3n-z_p(I)+z(thisk))/zof3n +
+     &        t(thisj,thisk+1,thisl)*(z_p(I)-z(thisk))/zof3n) /
+     &        rho(thisj,thisk,thisl)
+
+        Ogas=omega(thisj,thisk,thisl)*(one+1.5d0*(rhf(thisj)-r_p(I)) /
+     &       rhf(thisj) )
+
+       dv_r = Ugas - vr_p(I)
+       dv_z = Wgas - vz_p(I)
+       if(r_p(I)/=zero)then
+         omega_p(I)=jn_p(I)/r_p(I)**2
+         dv_a = (Ogas-omega_p(I))*r_p(I)
+       else
+         dv_a = zero
+         omega_p(I)=zero
+       endif
+
+      !-----------------------------
+      ! find new velocity difference
+      !-----------------------------
+
+       kn=half*muc*1.67d-24 / 
+     &    (rho(thisj,thisk,thisl)*rhoconv*pi*1d-16*psize*AUcgs)
+       csound1=sqrt(gamma1(thisj,thisk,thisl)
+     &        *bkmpcode/muc*tempk(thisj,thisk,thisl))
+
+       new_dv_r=updateDvWithDrag(dv_r,kn,csound1,
+     &             rho(thisj,thisk,thisl),rhoacgs/rhoconv,
+     &             psize,dt)
+
+       new_dv_z=updateDvWithDrag(dv_z,kn,csound1,
+     &             rho(thisj,thisk,thisl),rhoacgs/rhoconv,
+     &             psize,dt)
+
+       new_dv_a=updateDvWithDrag(dv_a,kn,csound1,
+     &             rho(thisj,thisk,thisl),rhoacgs/rhoconv,
+     &             psize,dt)
+
+      !----------------------------------------
+      ! update velocities and conserve momentum
+      !----------------------------------------
+
+       dustRho=mass_p(I)/(rof3n*zof3n*dtheta*rhf(thisj))
+       
+      !-----------------
+      ! radial direction
+      !-----------------     
+
+       fbottom=(rof3n-r_p(I)+r(thisj))/rof3n
+       ftop   =(r_p(I)-r(thisj))/rof3n
+  
+       oldGasmom=Ugas*rho(thisj,thisk,thisl)
+
+       oldTotmom=oldGasmom+dustRho*vr_p(I)
+
+       new_vel = (oldTotmom-rho(thisj,thisk,thisl)*new_dv_r) / 
+     &           (rho(thisj,thisk,thisl) + dustRho)
+
+!       if(vr_p(I)>1d0.or.new_vel>1d0)then
+!         print *, "I v dv nDv new_vel dustRho oldTotmom rho "
+!         print *, I, vr_p(I),dv_r,new_dv_r,new_vel,dustRho,
+!     &            oldTotmom,rho(thisj,thisk,thisl)
+!         print *, "thisj,thisk,thisl,r_p,z_p,angle_p"
+!         print *, thisj,thisk,thisl,r_p(I),z_p(I),angle_p(I)
+!         trigger=.true.
+!       endif
+
+       vr_p(I)=new_vel
+
+       Gasmom = oldTotmom-dustRho*vr_p(I)
+
+       s(thisj,thisk,thisl)=(Gasmom-oldgasmom)*fbottom
+     &                     +s(thisj,thisk,thisl)
+
+       s(thisj+1,thisk,thisl)=(Gasmom-oldGasmom)*ftop
+     &                       +s(thisj,thisk,thisl)
+
+      !------------------
+      ! vertical direction
+      !------------------     
+
+       fbottom=(zof3n-z_p(I)+z(thisk))/zof3n
+       ftop   =(z_p(I)-z(thisk))/zof3n
+
+       oldGasmom=t(thisj,thisk,thisl)*fbottom + 
+     &           t(thisj,thisk+1,thisl)*ftop
+       oldGasmom=Wgas*rho(thisj,thisk,thisl)
+
+       oldTotmom=oldGasmom+dustRho*vz_p(I)
+
+       new_vel = (oldTotmom-rho(thisj,thisk,thisl)*new_dv_z) / 
+     &           (rho(thisj,thisk,thisl) + dustRho)
+ 
+       !print *, dv_z,new_dv_z,new_vel,vz_p(I)
+       vz_p(I)=new_vel
+
+       Gasmom = oldTotmom-dustRho*vz_p(I)
+
+       t(thisj,thisk,thisl)=t(thisj,thisk,thisl)+
+     &        (Gasmom-oldGasmom)*fbottom
+       t(thisj,thisk+1,thisl)=t(thisj,thisk+1,thisl)+
+     &        (Gasmom-oldGasmom)*ftop
+
+      !--------------------
+      ! azimuthal direction
+      !--------------------     
+
+       oldGasmom=Ogas*rho(thisj,thisk,thisl)*r_p(I)
+
+       oldTotmom=oldGasmom+dustRho*omega_p(I)*r_p(I)
+
+       new_vel = (oldTotmom-rho(thisj,thisk,thisl)*new_dv_a)/ 
+     &           (rho(thisj,thisk,thisl) + dustRho)
+
+!       if (new_vel>40.)then
+!         print *, I,thisj,thisl,thisk
+!         print *, dv_a,new_dv_a,new_vel,jn_p(I),omega_p(I)
+!         print *, r_p(I),z_p(I),angle_p(I)
+!         stop
+!       endif 
+
+       !print *, I, sqrt(1.5/r_p(I)),omega_p(I)*r_p(I),new_vel,jn_p(I)
+
+       if(abs((new_vel*r_p(i)-jn_p(I))/jn_p(I))>.5)then
+         print *, "new_vel dv_a new_dv_a omega_p*r_p jn_p"
+         print *, "STOP ",
+     &     I, new_vel,dv_a,new_dv_a,omega_p(I)*r_p(I),jn_p(I)
+         print *, Ogas*r_p(I),rho(thisj,thisk,thisl),den
+         print *, omega(thisj,thisk,thisl)*rhf(thisj),
+     &            jn(thisj,thisk,thisl),jn_p(I)
+        print *, r_p(I),z_p(I),angle_p(I),thisj,thisk,thisl
+         stop
+       endif
+        
+       jn_p(I)=new_vel*r_p(I)
+       omega_p(I)=new_vel/r_p(I)
+
+       Gasmom = oldtotmom*r_p(I)-dustRho*jn_p(I)
+
+       a(thisj,thisk,thisl)=a(thisj,thisk,thisl) + 
+     &                      (Gasmom-oldGasmom*r_p(I))
+       jn(thisj,thisk,thisl)=a(thisj,thisk,thisl)/rho(thisj,thisk,thisl)
+       omega(thisj,thisk,thisl)=jn(thisj,thisk,thisl)/rhf(thisj)**2
+      enddo
+
+      if(trigger)stop
+
+      return
+      end subroutine account_for_drag
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      subroutine particle_fullstep(odelt,delt)
+
+      real*8 odelt,delt
+
+      call update_particle_vel(odelt)
+      call account_for_drag(odelt)
+      call update_particle_vel(delt)
+      call account_for_drag(delt)
+      call update_particle_pos(two*delt)
+      call clean_particles
+
+      return
+      end subroutine particle_fullstep
+
+
+
+      end module
+

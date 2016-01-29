@@ -1,0 +1,3 @@
+# module load intel/12.1.4
+# ifort -r8 hscf.f
+gfortran -fdefault-real-8 hscf.f 

@@ -1,0 +1,87 @@
+CHYMERA 2.0.0
+
+Code organization:
+
+* bin: makefiles. Will contain object files when compiled.
+* eos: state.f and initialization of H2 tables.
+* fluid: fluid tracing routines.
+* headers: *.h header files. *.h.orig include distribution values.
+* legacy: Where old code goes.
+* patch: Modification and extenals directory. USE THIS DIRECTORY to
+	modify source code.  Do NOT modify source code in other
+	directories, except for the header files. At compilation,
+	files are first searched for in the patch directory. 
+	The file passive.f is included in the patch directory because
+	it will need to modified according to the user's needs. 
+	The file format for saving data should NOT be changed, just
+	the initialization of the arrays.
+* pot: Potential solver files, including external potential.
+* radhydro: Hydrodynamics and radiation routines.  Including ad hoc
+	cooling routines.     
+* run: Data files and suggested directory for running simulations.
+	The executable is installed in this directory upon compiliation
+	as a default.
+
+Compilation:
+
+* See COMPILE in bin for details.
+
+What's new?
+
+* Enter a rotating reference frame
+* Passively fluxed arrays
+* More tractable handling of fluid routines
+* More tractable handling of stellar potential. In principle, any
+	external potential can now be added by modifing pot/ExternalPot.f.
+* Softened potential for star: jmin=2 can be used for disk simulations
+* Modified output to log files.  Relevant information is now dumped,
+	as well as time stamps.
+* Precision control: Digits 0-10 are now stored as double precision 
+	constants.  In addition, 0.5d0=half, 0.25d0 = quarter, and
+	twothree=2d0/3d0.  The code has not been completely updated,
+	but the framework is now in place for future code modifications.
+* Explicit version numbering
+
+NEW IN VERSION 2.1.0 (3 March 2009)
+
+* New accretion mechanism.  See ExternalRoutines
+* New cooling prescription as described in Boley (2009). See ExternalRoutines
+* Rolled back implicit handling due to parallelization problems. Code will need to
+	be rewritten in order to incorporate implicit or semi-implicit cooling/heating.
+	Explicit once again.
+
+BUGS
+
+* Major caching problems with index ordering have been identified and corrected.
+	Some places may still have caching problems.  These will be slowly corrected
+	with subversions, e.g., 2.0.0 to 2.0.1.
+* Error in array size declaration in pot3.f WAW was too small to account for KMAX>32.
+* Some minor parallelization problems.
+
+UPDATE
+
+2.0.1:
+* Corrected error with call to wiggle.  Missing gsoft in call.
+
+2.0.2:
+* Added semi-implicit step for heating and cooling.  This removes the dependency on limiters.
+  The addition is set by a pre-compiler definition NOLIMIT.  Just define it (default) to use
+  no limiters.
+* Corrected hardcoded numbers to parameters in wiggle.F
+* VINVH was added to the common block as VINH in flux.f.  Because this routine uses implicit
+  declaration, no error was discovered.  The code was OK because a save statement was used
+  for VINVH, which took the place of the common block.  VINVH is now back with the common block
+  for consistency.
+
+2.1.0
+* New accretion mechanism.  See ExternalRoutines
+* New cooling prescription as described in Boley (2009). See ExternalRoutines
+* Rolled back implicit handling due to parallelization problems. Code will need to
+        be rewritten in order to incorporate implicit or semi-implicit cooling/heating.
+        Explicit once again.
+NEW BUGS
+
+* Softening incorrectly called in 3dhyd-main.  Fixed.
+* Tested integration scheme of star extensively.  Works well provided that the
+  	mass accretion through the inner boundary is extremely small. Use 
+	softening to for this.
