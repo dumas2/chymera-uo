@@ -2,7 +2,7 @@
 ! takes density file and creates output for the
 ! the shell script makesig. Search for SWITCH to
 ! look for any hardcoded switch in this program.
-program sigplotter
+program phiplotter
  implicit none
 !
 ! creating the map.  rconv converts from cells to AU.
@@ -113,7 +113,7 @@ program sigplotter
   allocate(array2d(-1:JMAX,0:LMAX-1)      )
 
   YMAX = 2*JMAX; XMAX = 2*JMAX
-
+ pi = acos(-1.d0)
  I = ISTART
  do while ( I <= IEND )
     write (filenum,'(I6.6)')I
@@ -127,65 +127,19 @@ program sigplotter
  read(12)time
  close(12)
 
- print "(a,1pe9.2,a,I6.6,a)", " THE TIME IS ", (time/torp), " FOR FILE ",I,"."
-
- array2d = 0.d0
+ print "(a,1pe9.2,a,I6.6,a)", " THE TIME IS ", (time*torp), " FOR FILE ",I,"."
+ k=2
  do L = 0, LMAX-1
-   k=2
     do J = 0, JMAX-1
-      array2d(J,L) = array(J,K,L)
-    enddo
- enddo
-
- pi = acos(-1.d0)
- dphi = 2.d0*pi/dble(LMAX)
- ir = -JMAX*1.d0-0.5d0
- do II = 0, XMAX-1
-  ir = ir + 1.d0
-  jr = -JMAX*1.d0-0.5d0
-  do JJ = 0, YMAX-1
-   jr = jr+1.d0
-   rr = sqrt(jr**2+ir**2)
-   if (ir > 0.d0)then
-     angle = atan( (jr)/(ir))
-   else if (ir < 0.d0 ) then
-     angle = atan( (jr)/(ir))+pi
-   else if (ir == 0.d0 .and. jr == 0.d0) then
-     angle = 0.d0
-   else if (ir == 0.d0) then
-       if (jr > 0.d0 ) angle = .5d0*pi
-       if (jr < 0.d0 ) angle = 1.5d0*pi
-   else
-       if (ir > 0.d0 ) angle = 0.d0
-       if (ir < 0.d0 ) angle = pi
-   endif
-   if (angle < 0.d0 ) angle = angle + 2.d0*pi
-
-   angle = angle/dphi
-   IRR = int(rr)
-   IAN = int(angle)
-   IAN2 = IAN+1; if (IAN2 > LMAX-1) IAN2 = IAN2-LMAX
-
-   if (IRR >= JMAX-1) then
-     write(13,"(3(1pe15.8,1X))") ir*rconv, jr*rconv, bg  + (sconv)! SWITCH: set background density
-   else
-     y1 = (array2d(IRR,IAN))
-     y2 = (array2d(IRR,IAN2))
-     y3 = (array2d(IRR+1,IAN2))
-     y4 = (array2d(IRR+1,IAN))
-     t = (angle - IAN*1.d0)
-     u = (rr - IRR*1.d0)
-     write(13,"(3(1pe15.8,1X))") ir*rconv, jr*rconv,  &
-         (1.-t)*(1.-u)*y1+t*(1.-u)*y2+t*u*y3+(1.-t)*u*y4 + (sconv)
-   endif
-  enddo
-  write(13,"(a)")
+     write(13,"(1pe11.4,1x,1pe11.4,1x,1pe15.8)") j*dx, l*2.d0*pi/(LMAX-1), array(j,k,l)
+     enddo
+     write(13,"(a)") " "
  enddo
  close(13)
 
  I = I+ISKIP
  enddo ! end while loop
-
+!
  deallocate(array,array2d)
 
  stop
