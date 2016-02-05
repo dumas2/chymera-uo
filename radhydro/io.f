@@ -22,7 +22,7 @@ C***********************************************************************
       integer, PARAMETER::JKM1=2*POT3JMAX+POT3KMAX-1
       integer OMP_GET_MAX_THREADS
 
-      character::date_date*8,date_time*10,date_zone*5
+      character::date_date*8,date_time*10,date_zone*5,x1*6
 
       real*8 limiter
 c...arrays for various starts (see itype below).  Eventually,
@@ -47,7 +47,7 @@ c..start for a doubling of the radial and vertical grids
      &     eps_rz(jmax_s2,kmax_s2,lmax)
 
 
-      CHARACTER resfile*80,index*6
+      CHARACTER resfile*80,index*6,potfile*80
       DATA CURLYR,XMU/83.14,2.0/
  
 C     ITYPE TELLS WHETHER INITIAL OR READ IN MODEL.
@@ -146,6 +146,84 @@ c
 c     READ IN THE MODEL:  DIFFERENT OPTIONS
 c
 c-------------------------------------------------------------------------------
+! This is for diagnostics, it will read in the density, calculate PHI
+! and then exit. That's it. 
+      IF (ITYPE.EQ.71) THEN
+            WRITE(6,10100) ITYPE, ' POTENTIAL DIAGNOSTIC. No', 
+     &' perturbation. Calculating Phi and then exiting.'
+
+10100   FORMAT(/,'Reading model type',I4,':  Axisymmetric Hachisu,',a,a)
+
+         OPEN(UNIT=2,FILE='fort.2',STATUS='OLD')
+         READ(2,*)PINDEX,CON2,RRR2,OMCEN,DENCEN,TOVERW,ROF3N,ZOF3N,
+     &        A1NEWZ,JREQ,KZPOL
+ 1685    FORMAT(3X,1PE22.15,2X,8(1PE22.15,2X),2I4)
+
+         write(*,1685)PINDEX,CON2,RRR2,OMCEN,DENCEN,TOVERW,
+     &        ROF3N,ZOF3N,A1NEWZ,JREQ,KZPOL
+
+         READ(2,*) DENNY
+ 1617    FORMAT(8(1PE22.15,2X))
+         CLOSE(2)
+!! Define rho array from read in data.
+!$OMP PARALLEL DEFAULT(SHARED) PRIVATE(LP,j,k,l)
+!&
+!$OMP&  SHARED(gamma,konst,den)
+!$OMP DO SCHEDULE(STATIC)
+         do l=1,lmax
+            do k=2,kmax1
+               do j=2,jmax1
+                  rho(j,k,l)=denny(j,k)
+                  if(rho(j,k,l).lt.gridlim*den) then
+                    rho(j,k,l)=gridlim*den
+                  endif
+               end do
+            end do
+         end do
+!$OMP END DO NOWAIT
+!$OMP END PARALLEL
+
+c...grid setup
+      DELR=ROF3N
+      DELZ=ZOF3N
+!$OMP PARALLEL DEFAULT(SHARED) PRIVATE(k,j)
+!&
+!$OMP&  SHARED(DELZ,DELR)
+!$OMP DO SCHEDULE(STATIC)
+      DO J=1,JMAX2
+         R(J)=(J-2)*DELR
+         RHF(J)=R(J)+DELR/2.0
+      END DO
+!$OMP END DO nowait
+!$OMP DO SCHEDULE(STATIC)
+      DO K=1,KMAX2
+         Z(K)=(K-2)*DELZ
+         ZHF(K)=Z(K)+DELZ/2.0
+      END DO
+!$OMP END DO nowait
+!$OMP END PARALLEL
+
+!...Calling the potential solver now.
+
+!$OMP PARALLEL DEFAULT(SHARED)
+!&
+!$OMP&  SHARED(JKMAX,ISYM)
+         CALL SETBDY(0,ISYM)
+!$OMP END PARALLEL
+         CALL BDYGEN(MAXTRM,ISYM,REDGE)
+         CALL POT3(8,IPRINT)
+
+!...Write gravitational potential to output file.
+         write(x1,'(i6.6)')ITSTOP
+            potfile='phi3d.'//trim(x1)
+            OPEN(UNIT=23,FILE=potfile,FORM='UNFORMATTED')
+            write(23)phi
+            write(23)time
+            CLOSE(23)
+!...Exit program
+         call EXIT()
+      END IF
+c
 c  Initial axisymmetric Hachisu model
 c
       IF ((ITYPE.EQ.5).OR.(ITYPE.EQ.6).OR.(ITYPE.EQ.7)) THEN
@@ -156,7 +234,6 @@ c
          ELSE
             WRITE(6,10100) ITYPE, ' random perturbation'
          ENDIF
-10100    FORMAT(/,'Reading model type',I4,':  Axisymmetric Hachisu,',a)
 
          OPEN(UNIT=2,FILE='fort.2',STATUS='OLD')    
 
@@ -166,7 +243,6 @@ c     &        A1NEWZ,JREQ,KZPOL
          READ(2,*)PINDEX,CON2,RRR2,OMCEN,DENCEN,TOVERW,ROF3N,ZOF3N,
      &        A1NEWZ,JREQ,KZPOL
 
- 1685    FORMAT(3X,1PE22.15,2X,8(1PE22.15,2X),2I4)
 
          write(*,1685)PINDEX,CON2,RRR2,OMCEN,DENCEN,TOVERW,
      &        ROF3N,ZOF3N,A1NEWZ,JREQ,KZPOL
@@ -175,7 +251,6 @@ c         READ(2,1617) DENNY
 c         READ(2,1617) ANGGY
          READ(2,*) DENNY
          READ(2,*) ANGGY
- 1617    FORMAT(8(1PE22.15,2X))
          CLOSE(2)
 
          tmass=0.0
@@ -919,7 +994,7 @@ c routine.
       select case(SETUNITS)
 
       case (0)
-      mass_star = 5.0d0
+      mass_star = 1.0d1
       if(mass_star.gt.0.0) then
         Msyscgs=Mstar*Msuncgs*(1.d0+1.d0/mass_star)
 !        Msyscgs=Mstar*Msuncgs
