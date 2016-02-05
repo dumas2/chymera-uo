@@ -1,3 +1,14 @@
+! Equilibrium models are created in folder hscf/
+! It should be set up to create a model size 256x128x256.
+! Compile hscf.f and run with hscf as input, for example, a.out < hscf.in
+! Once complete copy fort.93 to fort.2 in your run directory.
+! Use command 'make' in bin/ to compile code. Compiled code should be in run
+! directory afterword. 
+! 
+! Use ITYPE=71 in fort.5 to run only the potential solver and output data to 
+! phi3d.xxxxxx
+!
+
 * COMPILE contains information on compiling the code.
 * VERSION discusses some of the code's structure, capabilities, and updates over time.
 
