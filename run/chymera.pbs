@@ -25,7 +25,7 @@
 ## email
 ##
 #PBS -m ea
-#PBS -M dumas2@uoregon.edu
+#PBS -M email@server.email
 
 # load modules
 # see /INFO/modules-howto.txt for a mini-howto on Modules
