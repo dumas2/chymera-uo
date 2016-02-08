@@ -1,0 +1,4 @@
+ FORTRAN_INCLUDE_FILES  ?= ../headers
+ C_INCLUDE_FILES  ?= ../headers
+ EXEDIR=./
+
