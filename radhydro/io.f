@@ -166,6 +166,7 @@ c-------------------------------------------------------------------------------
  1617    FORMAT(8(1PE22.15,2X))
          CLOSE(2)
 !! Define rho array from read in data.
+        DEN=DENCEN
 !$OMP PARALLEL DEFAULT(SHARED) PRIVATE(LP,j,k,l)
 !&
 !$OMP&  SHARED(gamma,konst,den)
@@ -204,6 +205,9 @@ c...grid setup
 !$OMP END PARALLEL
 
 !...Calling the potential solver now.
+        IPRINT=1
+        REDGE=0.d0
+
 
 !$OMP PARALLEL DEFAULT(SHARED)
 !&
@@ -1279,14 +1283,6 @@ c
 c...Axisymmetric models done.  Restarted models done.  Return and hydro.
 c
 c
-c...Write a bunch of stuff for analysis.
-      if(itype.lt.0) then
-        call RITE(1,1, 128,128,1, 2,kmax1,1, 1,1,1)
-        open(unit=11,file='phi3d.dat',form='unformatted')
-        write(11) PHI
-        close(11)
-      end if
-      
       IF((ITYPE.LE.5).OR.(ITYPE.EQ.8).OR.(ITYPE.EQ.9))
      &     RETURN
 
