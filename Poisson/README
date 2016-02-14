@@ -1,0 +1,3 @@
+In fort.5:
+Use ITYPE=7 for an equilibrium model as initial conditions. Reads in fort.2
+Use ITYPE=1 for a the end of a run as initial conditions. Reads in fort.7
