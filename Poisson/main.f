@@ -12,6 +12,36 @@
 !$      integer OMP_GET_MAX_THREADS
       dimension denny(hj2,hk2)
 
+   98 FORMAT(1E25.15)
+  100 FORMAT(1P2E15.8)
+  102 FORMAT(9(I6,1X))
+
+!...  Read in some run parameters.
+      OPEN(UNIT=5,FILE='fort.5',STATUS='OLD')
+
+      READ(5,100) KONST,XN
+      WRITE(6,10010) KONST,XN
+10010 FORMAT('  KONST  ',1PE20.12,/,'  XN     ',1PE20.12)
+      READ(5,98)GAMMA
+      WRITE(6,10020) GAMMA
+10020 FORMAT('  GAMMA  ',1PE20.12)
+
+      READ(5,102)ITSTRT,ITSTOP,IDIAG,ISOADI,ITYPE,NMODL,ISTOR,IGRID
+      WRITE(6,10030)ITSTRT,ITSTOP,IDIAG,ISOADI,ITYPE,NMODL,ISTOR,IGRID
+     &     ,JMIN
+10030 FORMAT('  ITSTRT ',I8,/,'  ITSTOP ',I8,/,'  IDIAG  ',I8,
+     &     /,'  ISOADI ',I8,/,'  ITYPE  ',I8,/,'  NMODL  ',I8,
+     &     /,'  ISTOR  ',I8,/,'  IGRID  ',I8,/,'  JMIN   ',I8)
+
+      READ(5,100) NPRIME
+      WRITE(6,10040) NPRIME
+10040 FORMAT('  NPRIME ',1PE20.12)
+      NTAPE=7
+      CLOSE(5)
+
+
+
+
 
 !...Define some things...
       MAXTRM=10
@@ -30,6 +60,7 @@
       CVHEAT=CURLYR/(XMU*(GAMMA-1.0))
       DTHETA=two*PI/dble(LMAX)
 
+      if(ITYPE.EQ.7) then
 ! Read in the density array, denny
       OPEN(UNIT=2,FILE='fort.2',STATUS='OLD')
       READ(2,*)PINDEX,CON2,RRR2,OMCEN,DENCEN,TOVERW,ROF3N,ZOF3N,
@@ -41,10 +72,9 @@
       READ(2,*) DENNY
  1617    FORMAT(8(1PE22.15,2X))
       CLOSE(2)
-!! Define rho array from read in data.
       DEN=DENCEN
-      print *, 'gridlim,den = ', gridlim, den
 
+!! Define rho array from read in data.
 !$OMP PARALLEL DEFAULT(SHARED) PRIVATE(LP,j,k,l)
 !&
 !$OMP&  SHARED(gamma,konst,den)
@@ -62,10 +92,29 @@
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-        print *, 'rho = ',rho(2,65,75)
+      elseif(ITYPE.EQ.1) then
+
+            OPEN(UNIT=7,FILE='fort.7',FORM='UNFORMATTED',STATUS='OLD')
+            read(7) S
+            read(7) T
+            read(7) A
+            read(7) RHO
+            read(7) EPS
+            read(7)ROF3N,ZOF3N,DELT,TIME,ELOST,DEN,SOUND,
+     &        JREQ,OMMAX
+            if (jmin.gt.2) then
+            read(7) tmassini,tmass,tmassadd,
+     &         tmassout,tmassacc,totcool,totdflux,totheat,totirr,etotfl,
+     &         eflufftot  !ACB
+            endif
+            dencen=den
+            rholmt=dencen*gridlim
+            epslmt=(1.d0/(gamma-1.0))*rholmt**gamma*gridlim
+            CLOSE(7)
 
 
-! Setup the grid. (From radhydro/io.f)
+      endif
+!...Set up the grid. (From radhydro/io.f)
 !...grid setup
       DELR=ROF3N
       DELZ=ZOF3N
@@ -89,19 +138,13 @@
 !...Calling the potential solver now.
       IPRINT = 0
       REDGE  = 0.d0
-        print *, 'here'
 !$OMP PARALLEL DEFAULT(SHARED)
 !&
 !$OMP&  SHARED(JKMAX,ISYM)
          CALL SETBDY(0,ISYM)
 !$OMP END PARALLEL
-        print *, 'there'
-        print *, 'here'
          CALL BDYGEN(MAXTRM,ISYM,REDGE)
-        print *, 'there'
-        print *, 'here'
          CALL POT3(8,IPRINT)
-        print *, 'there'
 
 !...Write gravitational potential to output file.
          write(x1,'(i6.6)')ITSTOP
