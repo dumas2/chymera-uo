@@ -46,7 +46,7 @@ check: poisson_solver
 	poisson_solver
 
 clean:
-	-rm -f *.o *.mod
+	-rm -f *.o *.mod poisson_solver
 ########################################################################
 #  OBJECTS
 
