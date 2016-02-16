@@ -17,7 +17,7 @@ include Makefile.DEFS
  CLINK =
 
  OBJ = main.o fft.o pot3.o \
-       boundary.o blktri.o\
+       boundary.o blktri.o wtime.o\
 
 #------------------------------------------------------------------
 chymera-omp: dummy
@@ -45,6 +45,9 @@ boundary.o: boundary.f
 	$(FC) $(CFLAGS) $(FOPT) $(FFIXED) $(FINC) -c $<
 
 %.o:%.f90
+	$(FC) $(CFLAGS) $(FOPT) $(FFREE) $(FINC) -c $<
+
+%.o:%.F90
 	$(FC) $(CFLAGS) $(FOPT) $(FFREE) $(FINC) -c $<
 
 %.o:%.F
