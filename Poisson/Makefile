@@ -27,8 +27,8 @@ OBJS = defines_mod.o fft.o pot3.o  \
 
 all: poisson_solver
 
-poisson_solver: poisson_solver.o $(OBJS)
-	$(FC) -o poisson_solver $< $(OBJS)
+poisson_solver: $(OBJS) poisson_solver.o
+	$(FC) -o poisson_solver poisson_solver.o $(OBJS)
 
 chymera-omp: dummy
 	make target "TARGET= $(EXEDIR)/chymera-omp"  \
