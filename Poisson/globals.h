@@ -133,9 +133,3 @@
 
       real*8 :: a1newr,a1newz
       common/obsolete/a1newr,a1newz
-
-#if PASSIVE>0
-      real*8 :: passflux
-      common/passivearray/passflux(JMAX+2,KMAX+2,LMAX,PAS)
-#endif
-
