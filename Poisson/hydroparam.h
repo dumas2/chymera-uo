@@ -32,11 +32,6 @@
       integer MAXTHREADS
       parameter (MAXTHREADS=200)
 
-! change the following for passive array size modification.
-#if PASSIVE>0
-      integer, parameter :: PAS=PASSIVE
-#endif
-
       real*8,parameter::one=1d0,two=2d0,three=3d0,four=4d0,five=5d0,    &
      & six=6d0,seven=7d0,eight=8d0,nine=9d0,ten=10d0,zero=0d0,          &
      & twothree=0.666666666666667d0,half=0.5d0,quarter=0.25d0
