@@ -2,36 +2,49 @@
 
 include Makefile.DEFS
 
- OMPF95 = gfortran -fopenmp -mcmodel=medium
- PREPROCESSOR = -x f95-cpp-input
- CFLAGS =
- TARCH  = -frecord-marker=4
- FOPT =  -O3 $(PREPROCESSOR)
- CONSERVEOPT = $(PREPROCESSOR)
+CC = gcc
+FC = gfortran
 
- FFREE = -ffree-form
- FFIXED = -ffixed-form
- CC = gcc
- COPT = -m64
+OMPF95 = gfortran -fopenmp -mcmodel=medium
+PREPROCESSOR = -x f95-cpp-input
+CFLAGS =
+TARCH  = -frecord-marker=4
+FOPT =  -O3 $(PREPROCESSOR)
+CONSERVEOPT = $(PREPROCESSOR)
+
+FFREE = -ffree-form
+FFIXED = -ffixed-form
+COPT = -m64
 # CLINK = -pg 
- CLINK =
+CLINK =
 
- OBJ = main.o fft.o pot3.o \
-       boundary.o blktri.o wtime.o\
+FFLAGS := -O3
+
+OBJS = defines_mod.o fft.o pot3.o  \
+       boundary.o blktri.o         \
 
 #------------------------------------------------------------------
+
+all: poisson_solver
+
+poisson_solver: poisson_solver.o $(OBJS)
+	$(FC) -o poisson_solver $< $(OBJS)
+
 chymera-omp: dummy
-	make target "TARGET= $(EXEDIR)/chymera-omp" \
+	make target "TARGET= $(EXEDIR)/chymera-omp"  \
  "FC=$(OMPF95)" "CFLAGS=$(CFLAGS) $(TARCH) $(DOPT)"  \
  "CC=$(CC)"  \
  "LFLAGS=$(LFLAGS)" \
- "OBJ=$(OBJ) $(FOBJ) $(WOBJ) $(POBJ) $(EOBJ)"
+ "OBJS=$(OBJS) $(FOBJ) $(WOBJ) $(POBJ) $(EOBJ)"
 
-target: $(OBJ)
-	$(FC) $(LFLAGS) -o $(TARGET) $(OBJ)
+target: $(OBJS)
+	$(FC) $(LFLAGS) -o $(TARGET) $(OBJS)
 
 dummy:
-	
+
+check: poisson_solver
+	poisson_solver
+
 clean:
 	-rm -f *.o *.mod
 ########################################################################
@@ -41,16 +54,16 @@ boundary.o: boundary.f
 	$(FC) $(CFLAGS) $(CONSERVEOPT) $(FFIXED) $(FINC) -c $<
 # DO NOT OPTIMIZE BOUNDARY UNLESS OTHERWISE NOTED ON WIKI. ONLY GCC PROBLEM.
 
-%.o:%.f
+%.o: %.f
 	$(FC) $(CFLAGS) $(FOPT) $(FFIXED) $(FINC) -c $<
 
-%.o:%.f90
+%.o: %.f90
 	$(FC) $(CFLAGS) $(FOPT) $(FFREE) $(FINC) -c $<
 
-%.o:%.F90
-	$(FC) $(CFLAGS) $(FOPT) $(FFREE) $(FINC) -c $<
+%.o: %.F90
+	$(FC) $(FFLAGS) -c $<
 
-%.o:%.F
+%.o: %.F
 	$(FC) $(CFLAGS) $(FOPT) $(FFREE) $(FINC) -c $<
 
 interp.o: interp.c
