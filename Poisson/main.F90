@@ -27,11 +27,11 @@
 10020 FORMAT('  GAMMA  ',1PE20.12)
 
       READ(5,102)ITSTRT,ITSTOP,IDIAG,ISOADI,ITYPE,NMODL,ISTOR,IGRID
-      WRITE(6,10030)ITSTRT,ITSTOP,IDIAG,ISOADI,ITYPE,NMODL,ISTOR,IGRID
+      WRITE(6,10030)ITSTRT,ITSTOP,IDIAG,ISOADI,ITYPE,NMODL,ISTOR,IGRID  &
      &     ,JMIN
-10030 FORMAT('  ITSTRT ',I8,/,'  ITSTOP ',I8,/,'  IDIAG  ',I8,
-     &     /,'  ISOADI ',I8,/,'  ITYPE  ',I8,/,'  NMODL  ',I8,
-     &     /,'  ISTOR  ',I8,/,'  IGRID  ',I8,/,'  JMIN   ',I8)
+10030 FORMAT('  ITSTRT ',I8,/,'  ITSTOP ',I8,/,'  IDIAG  ',I8,          &
+     &     /,'  ISOADI ',I8,/,'  ITYPE  ',I8,/,'  NMODL  ',I8,          &
+     &     /,'  ISTOR  ',I8,/,'  IGRID  ',I8,/,'  JMIN   ',I8)          
 
       READ(5,100) NPRIME
       WRITE(6,10040) NPRIME
@@ -63,11 +63,11 @@
       if(ITYPE.EQ.7) then
 ! Read in the density array, denny
       OPEN(UNIT=2,FILE='fort.2',STATUS='OLD')
-      READ(2,*)PINDEX,CON2,RRR2,OMCEN,DENCEN,TOVERW,ROF3N,ZOF3N,
+      READ(2,*)PINDEX,CON2,RRR2,OMCEN,DENCEN,TOVERW,ROF3N,ZOF3N,        &
      &        A1NEWZ,JREQ,KZPOL
  1685    FORMAT(3X,1PE22.15,2X,8(1PE22.15,2X),2I4)
 
-      write(*,1685)PINDEX,CON2,RRR2,OMCEN,DENCEN,TOVERW,
+      write(*,1685)PINDEX,CON2,RRR2,OMCEN,DENCEN,TOVERW,                &
      &        ROF3N,ZOF3N,A1NEWZ,JREQ,KZPOL
       READ(2,*) DENNY
  1617    FORMAT(8(1PE22.15,2X))
@@ -100,11 +100,11 @@
             read(7) A
             read(7) RHO
             read(7) EPS
-            read(7)ROF3N,ZOF3N,DELT,TIME,ELOST,DEN,SOUND,
+            read(7)ROF3N,ZOF3N,DELT,TIME,ELOST,DEN,SOUND,               &
      &        JREQ,OMMAX
             if (jmin.gt.2) then
-            read(7) tmassini,tmass,tmassadd,
-     &         tmassout,tmassacc,totcool,totdflux,totheat,totirr,etotfl,
+            read(7) tmassini,tmass,tmassadd,                            &
+     &         tmassout,tmassacc,totcool,totdflux,totheat,totirr,etotfl,&
      &         eflufftot  !ACB
             endif
             dencen=den
