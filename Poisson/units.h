@@ -78,25 +78,6 @@
       logical,parameter::find_eos_rho=.true.
       PARAMETER(amp0=0.005) ! amplitude of initial, random perturbation
 
-#if EXTERNAL_POT>0
-      logical, parameter :: external_pot = .true.
-#else
-      logical, parameter :: external_pot = .false.
-#endif
-#if FLUID_RESTART>0
-      logical, parameter :: restart_fluid = .true.
-#else
-      logical, parameter :: restart_fluid = .false.
-#endif
-#if WIGGLE_RESTART>0
-      logical, parameter :: restart_wiggle = .true.
-#else
-      logical, parameter :: restart_wiggle = .false.
-#endif
-#if ROTATING>0
-      real*8, parameter :: omega_frame=5d-2  
-#endif
-
 !     leave a space after the file name, or set the exact character length.
 !     This will help to ensure that all compilers do the right thing.
       character*11, parameter :: mmwfile='mmw_new.dat'
