@@ -1,13 +1,20 @@
 # Makefile for poisson solver from chymera
 
-include Makefile.DEFS
+#include Makefile.DEFS
+
+# detect OS, 'linux' is output for Linux system, 'darwin' for OS X
+OSLOWER = $(shell uname -s 2>/dev/null | tr [:upper:] [:lower:])
+
 
 CC = gcc
 FC = gfortran
 
 FOPT = -O3
-DATA_SIZE = -mcmodel=medium
 OMPFLAGS = -fopenmp
+
+ifneq ($(OSLOWER),darwin)
+   DATA_SIZE = -mcmodel=medium
+endif
 
 CFLAGS =
 TARCH  = -frecord-marker=4
