@@ -1,3 +1,18 @@
+Indices
+-------
+
+j - radial
+k - vertical
+l - azimuthal
+
 In fort.5:
 Use ITYPE=7 for an equilibrium model as initial conditions. Reads in fort.2
 Use ITYPE=1 for a the end of a run as initial conditions. Reads in fort.7
+
+Files
+-----
+
+fort.2  - initial conditions, density_momentum.txt (ascii)
+fort.7  - restart.dat (binary)
+fort.5  - params.txt
+fort.23 - phi3d.000012 -. phi3d_000012.dat  (_* -> iteration #)
