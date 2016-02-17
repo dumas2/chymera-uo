@@ -9,8 +9,8 @@ OMPF95 = gfortran -fopenmp -mcmodel=medium
 PREPROCESSOR = -x f95-cpp-input
 CFLAGS =
 TARCH  = -frecord-marker=4
-FOPT =  -O3 $(PREPROCESSOR)
-CONSERVEOPT = $(PREPROCESSOR)
+FOPT =  -O3
+CONSERVEOPT =
 
 FFREE = -ffree-form
 FFIXED = -ffixed-form
@@ -18,7 +18,8 @@ COPT = -m64
 # CLINK = -pg 
 CLINK =
 
-FFLAGS := -O3
+FFLAGS := $(FOPT)
+FFLAGS += $(FINC)
 
 OBJS = defines_mod.o fft.o pot3.o  \
        boundary.o blktri.o         \
@@ -50,21 +51,21 @@ clean:
 ########################################################################
 #  OBJECTS
 
-boundary.o: boundary.f
-	$(FC) $(CFLAGS) $(CONSERVEOPT) $(FFIXED) $(FINC) -c $<
+boundary.o: boundary.F
+	$(FC) $(FINC) $(CONSERVEOPT) -c $<
 # DO NOT OPTIMIZE BOUNDARY UNLESS OTHERWISE NOTED ON WIKI. ONLY GCC PROBLEM.
 
 %.o: %.f
-	$(FC) $(CFLAGS) $(FOPT) $(FFIXED) $(FINC) -c $<
+	$(FC) $(FFLAGS) -c $<
 
 %.o: %.f90
-	$(FC) $(CFLAGS) $(FOPT) $(FFREE) $(FINC) -c $<
+	$(FC) $(FFLAGS) -c $<
 
 %.o: %.F90
 	$(FC) $(FFLAGS) -c $<
 
 %.o: %.F
-	$(FC) $(CFLAGS) $(FOPT) $(FFREE) $(FINC) -c $<
+	$(FC) $(FFLAGS) -c $<
 
 interp.o: interp.c
 	$(CC) $(COPT) $(CLINK) $(CINC) -c $<
