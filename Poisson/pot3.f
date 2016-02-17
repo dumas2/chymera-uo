@@ -13,10 +13,12 @@ C*******************************************************************************
 
 
       SUBROUTINE POT3(NPOINT,IPRINT)
+      USE defines_mod
       IMPLICIT real*8 (a-h,o-z)      
 
-#include "hydroparam.h"
-#include "globals.h"
+      INCLUDE "hydroparam.h"
+      INCLUDE "globals.h"
+
       COMMON /COEFS/COEF(pot3JMAX2,pot3KMAX2,LMAX2,2)
 
 C A1 and B1  should be dimensioned lmax.  They're used in fft.
@@ -309,10 +311,11 @@ C$OMP END PARALLEL
 c*******************************************************************************
 
       SUBROUTINE ZAXPHI(NPOINT,IPRINT)
+      USE defines_mod
       IMPLICIT real*8 (a-h,o-z)      
 
-#include "hydroparam.h"
-#include "globals.h"
+      INCLUDE "hydroparam.h"
+      INCLUDE "globals.h"
 
       COMMON /INSIDE/TMASS,ENEW,ELOST,EDIF,PHICHK,KLOCAT
       COMMON /COEFS/COEF(POT3JMAX2,POT3KMAX2,LMAX2,2)
