@@ -13,12 +13,12 @@ C  used (see also last dimension of BDYTRM in routine BDYGEN):
 C  If ABS(ISYM) = 1 or 8, dimension them (2*POT3JMAX + POT3KMAX -1).
 C  = 2,3, or 9, dimension them (POT3JMAX + POT3KMAX -1).        
 C                                                                       
+      USE defines_mod
       IMPLICIT real*8 (a-h,o-z)                                         
 
-#include "hydroparam.h"
-#include "globals.h"
+      INCLUDE "hydroparam.h"
+      INCLUDE "globals.h"
 
-C     
       PARAMETER(JKM1=2*POT3JMAX+POT3KMAX-1)
       COMMON /BDY/ COSM(LMAX,10),SINM(LMAX,10),RBDY(JKM1),BDYCHK
       COMMON /BDY1/ JPOS(JKM1),KPOS(JKM1),JKMAX 
@@ -105,9 +105,11 @@ C  REDGE = 0.0,  mass can be anywhere in grid.
 C        .GT.0.0, mass entirely within sphere of radius = redge.
 C                                                                       
 C                                                                       
+      USE defines_mod
       IMPLICIT real*8 (a-h,o-z)
-#include "hydroparam.h"
-#include "globals.h"
+
+      INCLUDE "hydroparam.h"
+      INCLUDE "globals.h"
 
       COMMON /INSIDE/ TMASS,ENEW,ELOST,EDIF,PHICHK,KLOCAT              
 
