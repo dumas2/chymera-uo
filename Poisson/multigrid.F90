@@ -94,4 +94,47 @@ Subroutine Restrict(J, K, V1h, V2h)
 
 End Subroutine Restrict
 
+Pure Subroutine Relax_2D(N, A, Tmp, rho, r_var)
+!
+! Relax_1D on the interior and the two halo cells shared with the left and right neighbors
+!   - shared halo cells are computed twice and are not exchanged
+!   - the outside halo cells are from neighbors and cannot be not computed
+!
+   Implicit None
+   Integer, intent(in   ) :: N, m
+   Real,    intent(inout) :: A  (-1:N+1,-1:N+1)
+   Real,    intent(inout) :: Tmp(-1:N+1,-1:N+1)
+   Real,    intent(in)    :: rho(-1:N+1,-1:N+1)
+   Real,    intent(in)    :: r_var(-1:N+1)
+   Real,                  :: dz,dr,pi
+   Integer                :: i,j
+
+   ! compute over extended region including boundary cells
+   do i = 0, N
+     do j = 0, N
+      Tmp(i) = (1.0 - w)*A(i) + 0.5*w*( 0.5*(2.0*r_var(j)-dr)*dz/(r_var(j)*(dr*dr+dz*dz)+(m*dz*dr)**2)*A(i-1,j) &
+                                     +  0.5*(2.0*r_var(j)+dr)*dz/(r_var(j)*(dr*dr+dz*dz)+(m*dz*dr)**2)*A(i+1,j) &
+                                     +  r_var(j)*dr**2          /(r_var(j)*(dr*dr+dz*dz)+(m*dz*dr)**2)*A(i,j+1) &
+                                     +  r_var(j)*dr**2          /(r_var(j)*(dr*dr+dz*dz)+(m*dz*dr)**2)*A(i,j-1) &
+                                   +  r_var(j)*(dr*dz)**2*4.0*pi/(r_var(j)*(dr*dr+dz*dz)+(m*dz*dr)**2)*rho(i,j) )
+     end do
+   end do
+
+   ! Do this in exchange halo...
+   !    - probably should have rank information so that physical boundaries aren't changed
+   !
+
+   ! compute over just the interior
+   do i = 1, N-1
+      A(i) = (1.0 - w)*A(i) + 0.5*w*( 0.5*(2.0*r_var(j)-dr)*dz/(r_var(j)*(dr*dr+dz*dz)+(m*dz*dr)**2)*Tmp(i-1,j) &
+                                  +  0.5*(2.0*r_var(j)+dr)*dz/(r_var(j)*(dr*dr+dz*dz)+(m*dz*dr)**2)*Tmp(i+1,j) &
+                                  +  r_var(j)*dr**2          /(r_var(j)*(dr*dr+dz*dz)+(m*dz*dr)**2)*Tmp(i,j+1) &
+                                  +  r_var(j)*dr**2          /(r_var(j)*(dr*dr+dz*dz)+(m*dz*dr)**2)*Tmp(i,j-1) &
+                                  +  r_var(j)*(dr*dz)**2*4.0*pi/(r_var(j)*(dr*dr+dz*dz)+(m*dz*dr)**2)*rho(i,j) )
+   end do
+
+
+End Subroutine Relax_2D
+
+
 End Module MultiGrid
