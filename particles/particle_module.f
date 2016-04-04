@@ -100,7 +100,7 @@
 
       integer::thisj,thisk,thisllow,thislhi,thisl,I
       real*8::tmp,ran4,mag,r_p,angle_p,vr_p,omega_p
-      print *, 'im inside' 
+!      print *, 'im inside' 
       do i=1,nparticle
 
          if(particle_skip(I))cycle
@@ -112,8 +112,8 @@
          thisJ=int(r_p/rof3n)+2
          thisK=int(z_p(I)/zof3n)+2
          thisL=int(angle_p/dtheta)+1
-         print *, 'phi(+1),phi(-1)',phi(thisJ+1,thisK,thisL),
-     &    phi(thisJ-1,thisK,thisL)
+!         print *, 'phi(+1),phi(-1)',phi(thisJ+1,thisK,thisL),
+!     &    phi(thisJ-1,thisK,thisL)
          omega_p= ( phi(thisJ+1,thisK,thisL)-phi(thisJ-1,thisK,thisL) )
      &          / ( two*rof3n )*r_p
 
@@ -121,18 +121,17 @@
 
          tmp=(two*ran4(i) -one)
          mag=0.1*ran4(i)
-         print *, 'tmp,mag,omegap,rp',tmp,mag,omega_p,r_p
+!         print *, 'tmp,mag,omegap,rp',tmp,mag,omega_p,r_p
          if(tmp/=zero)then
            vr_p=abs(tmp)/tmp*mag*omega_p*r_p
            vz_p(I)=abs(tmp)/tmp*mag*omega_p*r_p
-           print *,'if'
          else
            vz_p(i)=zero
            vr_p=zero
-           print *,'else'
          endif 
          call get_cart_vel(vr_p,omega_p,vx_p(I),vy_p(I),r_p,angle_p)
-       print *, 'vx,vy,vz',I,vx_p(I),vy_p(I),vz_p(I)
+ !      print *, 'vx,vy,vz',I,vx_p(I),vy_p(I),vz_p(I)
+          if(i==1)print *, 'vx,vy,vz',vx_p(I),vy_p(I),vz_p(I)
       enddo 
       return
       end subroutine set_particle_vel
@@ -155,7 +154,7 @@
       real*8, allocatable,dimension(:)::mass_cell
 
       limiter=den*phylim*1d3
-      print *, 'lim =', limiter
+!      print *, 'lim =', limiter
       allocate(x_p    (NPARTICLE))
       allocate(y_p    (NPARTICLE))
       allocate(z_p    (NPARTICLE))
@@ -232,7 +231,7 @@
             particle_skip(NF)=.false.
             call get_cartesian(r_p,angle_p,x_p(NF),y_p(NF))
             print *, NF, " Particles to go."
-            print *, 'r,thet,x,y=',r_p,angle_p,x_p(NF),y_p(NF)
+!            print *, 'r,thet,x,y=',r_p,angle_p,x_p(NF),y_p(NF)
             NF=NF-1
          endif 
       enddo
@@ -246,7 +245,7 @@
 !      call get_cartesian(r_p,angle_p,x_p(2),y_p(2))
       deallocate(jcell,kcell,lcell,flag,mass_cell)
       call set_particle_vel() 
-       print *, 'init,vx,vy,vz',vx_p,vy_p,vz_p
+!       print *, 'init,vx,vy,vz',vx_p,vy_p,vz_p
       return
       end subroutine initialize_particles
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -359,11 +358,11 @@
       do I=1,NPARTICLE
 
        if(particle_skip(I))cycle
-       print *, 'vx,vy,vz',I,vx_p(I),vy_p(I),vz_p(I)
+!       print *, 'vx,vy,vz',I,vx_p(I),vy_p(I),vz_p(I)
        x_p(I)=x_p(I)+vx_p(I)*dt
        y_p(I)=y_p(I)+vy_p(I)*dt
        z_p(I)=z_p(I)+vz_p(I)*dt
-       print *, 'xup,yup,zup',x_p(I),y_p(I),z_p(I)
+!       print *, 'xup,yup,zup',x_p(I),y_p(I),z_p(I)
        !----------------------
        ! boundary condtion
        !----------------------  
@@ -422,8 +421,8 @@
          thisk=int(z_p(i)/zof3n)+2
          thisl=int(angle_p/dtheta)+1 
 
-         print *, thisj,thisk,thisl,I
-         print *,r_p,z_p(I),angle_p,mass_p(I) 
+!         print *, thisj,thisk,thisl,I
+!         print *,r_p,z_p(I),angle_p,mass_p(I) 
 
          rhotot(thisj,thisk,thisl)=rhotot(thisj,thisk,thisl)
      &     + mass_p(I)/(rof3n*zof3n*rhf(thisj)*dtheta)
@@ -561,7 +560,7 @@
               updateDvWithDrag=zero
               return
             endif
-            print *, 'csound',csound
+!            print *, 'csound',csound
             magDv=abs(dv)
             mach=magDv/csound
             Re=three*sqrt(pi/eight)*mach/kn
@@ -676,20 +675,20 @@
  !      csound1=sqrt(gamma1(thisj,thisk,thisl)
  !    &        *bkmpcode/muc*tempk(thisj,thisk,thisl))
        csound1=sqrt(gamma*P(thisj,thisk,thisl)/rho(thisj,thisk,thisl))
-       print *, 'P(j,k,l)=',P(thisj,thisk,thisl)
+!       print *, 'P(j,k,l)=',P(thisj,thisk,thisl)
        new_dv_r=updateDvWithDrag(dv_r,kn,csound1,
      &             rho(thisj,thisk,thisl),rhoacgs/rhoconv,
      &             psize,dt)
-       print *, 'newdvr',new_dv_r
+!       print *, 'newdvr',new_dv_r
        new_dv_z=updateDvWithDrag(dv_z,kn,csound1,
      &             rho(thisj,thisk,thisl),rhoacgs/rhoconv,
      &             psize,dt)
-       print *, 'newdvz',new_dv_z
+!       print *, 'newdvz',new_dv_z
 
        new_dv_a=updateDvWithDrag(dv_a,kn,csound1,
      &             rho(thisj,thisk,thisl),rhoacgs/rhoconv,
      &             psize,dt)
-       print *, 'newdva',new_dv_a
+!       print *, 'newdva',new_dv_a
 
 
       !----------------------------------------
