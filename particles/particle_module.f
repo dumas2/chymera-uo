@@ -4,10 +4,10 @@
 #include "hydroparam.h"
 #include "globals.h"  
 
-      logical,save::read_particle_file=.true.
+      logical,save::read_particle_file=.false.
       integer,save::P_FILEID=40000
       
-      integer,save::NPARTICLE=10000
+      integer,save::NPARTICLE=10
       logical,save,allocatable,dimension(:)::particle_skip
 
       real*8,save,allocatable,dimension(:)::x_p,y_p,z_p ,mass_p
@@ -100,11 +100,11 @@
 
       integer::thisj,thisk,thisllow,thislhi,thisl,I
       real*8::tmp,ran4,mag,r_p,angle_p,vr_p,omega_p
-  
+      print *, 'im inside' 
       do i=1,nparticle
 
          if(particle_skip(I))cycle
-
+ 	 print *, 'particle ',i
          call get_cylinder(x_p(I),y_p(I),r_p,angle_p)
          if(i==1)print *, x_p(I),y_p(I),r_p,angle_p
 
@@ -112,7 +112,8 @@
          thisJ=int(r_p/rof3n)+2
          thisK=int(z_p(I)/zof3n)+2
          thisL=int(angle_p/dtheta)+1
-
+         print *, 'phi(+1),phi(-1)',phi(thisJ+1,thisK,thisL),
+     &    phi(thisJ-1,thisK,thisL)
          omega_p= ( phi(thisJ+1,thisK,thisL)-phi(thisJ-1,thisK,thisL) )
      &          / ( two*rof3n )*r_p
 
@@ -120,15 +121,18 @@
 
          tmp=(two*ran4(i) -one)
          mag=0.1*ran4(i)
+         print *, 'tmp,mag,omegap,rp',tmp,mag,omega_p,r_p
          if(tmp/=zero)then
            vr_p=abs(tmp)/tmp*mag*omega_p*r_p
            vz_p(I)=abs(tmp)/tmp*mag*omega_p*r_p
+           print *,'if'
          else
            vz_p(i)=zero
            vr_p=zero
+           print *,'else'
          endif 
          call get_cart_vel(vr_p,omega_p,vx_p(I),vy_p(I),r_p,angle_p)
-
+       print *, 'vx,vy,vz',I,vx_p(I),vy_p(I),vz_p(I)
       enddo 
       return
       end subroutine set_particle_vel
@@ -150,8 +154,8 @@
       integer,allocatable,dimension(:)::JCELL,KCELL,LCELL
       real*8, allocatable,dimension(:)::mass_cell
 
-      limiter=den*phylim*1d4
-
+      limiter=den*phylim*1d3
+      print *, 'lim =', limiter
       allocate(x_p    (NPARTICLE))
       allocate(y_p    (NPARTICLE))
       allocate(z_p    (NPARTICLE))
@@ -208,7 +212,7 @@
           enddo
         enddo
       enddo
-         
+      print *, 'N cells>limiter',I
       SEED=0
       NF=NPARTICLE
       do while(NF>0)
@@ -228,6 +232,7 @@
             particle_skip(NF)=.false.
             call get_cartesian(r_p,angle_p,x_p(NF),y_p(NF))
             print *, NF, " Particles to go."
+            print *, 'r,thet,x,y=',r_p,angle_p,x_p(NF),y_p(NF)
             NF=NF-1
          endif 
       enddo
@@ -241,7 +246,7 @@
 !      call get_cartesian(r_p,angle_p,x_p(2),y_p(2))
       deallocate(jcell,kcell,lcell,flag,mass_cell)
       call set_particle_vel() 
-
+       print *, 'init,vx,vy,vz',vx_p,vy_p,vz_p
       return
       end subroutine initialize_particles
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -324,7 +329,7 @@
          vx_p(I)=vx_p(I)+accx*dt
          vy_p(I)=vy_p(I)+accy*dt
          vz_p(I)=vz_p(I)+accz*dt
-
+ !        print *, 'ar, az, aa = ', accr,accz,acca
       enddo 
 !$OMP ENDDO
 !$OMP DO SCHEDULE(STATIC)
@@ -354,11 +359,11 @@
       do I=1,NPARTICLE
 
        if(particle_skip(I))cycle
- 
+       print *, 'vx,vy,vz',I,vx_p(I),vy_p(I),vz_p(I)
        x_p(I)=x_p(I)+vx_p(I)*dt
        y_p(I)=y_p(I)+vy_p(I)*dt
        z_p(I)=z_p(I)+vz_p(I)*dt
-
+       print *, 'xup,yup,zup',x_p(I),y_p(I),z_p(I)
        !----------------------
        ! boundary condtion
        !----------------------  
@@ -417,8 +422,8 @@
          thisk=int(z_p(i)/zof3n)+2
          thisl=int(angle_p/dtheta)+1 
 
-!         print *, thisj,thisk,thisl,I
-!         print *,r_p(I),z_p(I),angle_p(I),mass_p(I) 
+         print *, thisj,thisk,thisl,I
+         print *,r_p,z_p(I),angle_p,mass_p(I) 
 
          rhotot(thisj,thisk,thisl)=rhotot(thisj,thisk,thisl)
      &     + mass_p(I)/(rof3n*zof3n*rhf(thisj)*dtheta)
@@ -556,6 +561,7 @@
               updateDvWithDrag=zero
               return
             endif
+            print *, 'csound',csound
             magDv=abs(dv)
             mach=magDv/csound
             Re=three*sqrt(pi/eight)*mach/kn
@@ -667,20 +673,23 @@
 
        kn=half*muc*1.67d-24 / 
      &    (rho(thisj,thisk,thisl)*rhoconv*pi*1d-16*psize*AUcgs)
-       csound1=sqrt(gamma1(thisj,thisk,thisl)
-     &        *bkmpcode/muc*tempk(thisj,thisk,thisl))
-
+ !      csound1=sqrt(gamma1(thisj,thisk,thisl)
+ !    &        *bkmpcode/muc*tempk(thisj,thisk,thisl))
+       csound1=sqrt(gamma*P(thisj,thisk,thisl)/rho(thisj,thisk,thisl))
+       print *, 'P(j,k,l)=',P(thisj,thisk,thisl)
        new_dv_r=updateDvWithDrag(dv_r,kn,csound1,
      &             rho(thisj,thisk,thisl),rhoacgs/rhoconv,
      &             psize,dt)
-
+       print *, 'newdvr',new_dv_r
        new_dv_z=updateDvWithDrag(dv_z,kn,csound1,
      &             rho(thisj,thisk,thisl),rhoacgs/rhoconv,
      &             psize,dt)
+       print *, 'newdvz',new_dv_z
 
        new_dv_a=updateDvWithDrag(dv_a,kn,csound1,
      &             rho(thisj,thisk,thisl),rhoacgs/rhoconv,
      &             psize,dt)
+       print *, 'newdva',new_dv_a
 
 
       !----------------------------------------
@@ -780,7 +789,7 @@
 
       call update_particle_vel(odelt)
       call account_for_drag(odelt)
-      call update_particle_vel(delt)
+      call update_particle_vel(delt)   
       call account_for_drag(delt)
       call update_particle_pos(two*delt)
       call clean_particles
