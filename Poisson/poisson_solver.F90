@@ -1,13 +1,14 @@
 program poissonSolver
   use defines_mod
+  use relaxmod
   implicit real*8(a-h,o-z)
   include "hydroparam.h"
   include "globals.h"
   include "units.h"
 
   CHARACTER potfile*80,x1*6
-  common /coefs/coef(pot3jmax2,pot3kmax2,lmax2,2)
-
+  common /coefs/coef(pot3jmax2,pot3kmax2,lmax2,2), coef2(pot3jmax2,pot3kmax2,lmax)
+    
   integer, PARAMETER::JKM1=2*POT3JMAX+POT3KMAX-1
 !$ integer OMP_GET_MAX_THREADS
   dimension denny(hj2,hk2)
@@ -108,8 +109,8 @@ program poissonSolver
 
   endif
 
-!...Set up the grid. (From radhydro/io.f)
-!...grid setup
+!!...Set up the grid. (From radhydro/io.f)
+!!...grid setup
   DELR=ROF3N
   DELZ=ZOF3N
 !$OMP PARALLEL DEFAULT(SHARED) PRIVATE(k,j)
@@ -129,8 +130,8 @@ program poissonSolver
 !$OMP END DO nowait
 !$OMP END PARALLEL
 
-!...Calling the potential solver now.
-  IPRINT = 0
+!!...Calling the potential solver now.
+  IPRINT = 1
   REDGE  = 0.d0
 !$OMP PARALLEL DEFAULT(SHARED)
 !&
@@ -138,9 +139,9 @@ program poissonSolver
   CALL SETBDY(0,ISYM)
 !$OMP END PARALLEL
   CALL BDYGEN(MAXTRM,ISYM,REDGE)
-  CALL POT3(8,IPRINT)
+  CALL POT32(8,IPRINT)
 
-!...Write gravitational potential to output file.
+!!...Write gravitational potential to output file.
   write(x1,'(i6.6)')ITSTOP
   potfile='phi3d.'//trim(x1)
   OPEN(UNIT=23,FILE=potfile,FORM='UNFORMATTED')
