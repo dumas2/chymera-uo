@@ -13,11 +13,13 @@ Module MultiGrid
 ! new grid with HALO(-2:*:2), DIMENSION(-1:N+1)
 !
 ! N-1, N/2-1,N/4-1,... interior cells, N+3,N/2+3,N/4+3,... total cells
-!
+!  ____________________________________________________________________________
 !  x           x |          o          | o |          o          | x           x
 !        x     x |    o     o     o    | o |    o     o     o    | x     x
 !           x  x | o  o  o  o  o  o  o | o | o  o  o  o  o  o  o | x  x
-!  
+!                | 2  3  4                                    256| 257  258
+!          -1  0 | 1  2  3                                    255| 256 257        
+!
 !  N=8, NP=2
 !
 !  N-1 interior, 4 halo cells with N+3 total points
@@ -94,47 +96,128 @@ Subroutine Restrict(J, K, V1h, V2h)
 
 End Subroutine Restrict
 
-Pure Subroutine Relax_2D(N, A, Tmp, rho, r_var)
+Subroutine Relax(Nj, Nk, m, A, Tmp, rho, dr, dz)
 !
-! Relax_1D on the interior and the two halo cells shared with the left and right neighbors
+! Relax_2D on the interior and the two halo cells shared with the left and right neighbors
 !   - shared halo cells are computed twice and are not exchanged
 !   - the outside halo cells are from neighbors and cannot be not computed
 !
    Implicit None
-   Integer, intent(in   ) :: N, m
-   Real,    intent(inout) :: A  (-1:N+1,-1:N+1)
-   Real,    intent(inout) :: Tmp(-1:N+1,-1:N+1)
-   Real,    intent(in)    :: rho(-1:N+1,-1:N+1)
-   Real,    intent(in)    :: r_var(-1:N+1)
-   Real,                  :: dz,dr,pi
-   Integer                :: i,j
+   Integer, intent(in   ) :: Nj, Nk, m
+   Real,    intent(inout) :: A(-1:Nj+1,-1:Nk+1)
+   Real,    intent(inout) :: Tmp(-1:Nj+1,-1:Nk+1)
+   Real,    intent(in)    :: rho(-1:Nj+1,-1:Nk+1),dr,dz
+   Real                   :: r_var(-1:Nj+1)
+   Real                   :: pi,dtheta,m1,w
+   Integer                :: ir,jk,i
 
-   ! compute over extended region including boundary cells
-   do i = 0, N
-     do j = 0, N
-      Tmp(i) = (1.0 - w)*A(i) + 0.5*w*( 0.5*(2.0*r_var(j)-dr)*dz/(r_var(j)*(dr*dr+dz*dz)+(m*dz*dr)**2)*A(i-1,j) &
-                                     +  0.5*(2.0*r_var(j)+dr)*dz/(r_var(j)*(dr*dr+dz*dz)+(m*dz*dr)**2)*A(i+1,j) &
-                                     +  r_var(j)*dr**2          /(r_var(j)*(dr*dr+dz*dz)+(m*dz*dr)**2)*A(i,j+1) &
-                                     +  r_var(j)*dr**2          /(r_var(j)*(dr*dr+dz*dz)+(m*dz*dr)**2)*A(i,j-1) &
-                                   +  r_var(j)*(dr*dz)**2*4.0*pi/(r_var(j)*(dr*dr+dz*dz)+(m*dz*dr)**2)*rho(i,j) )
+   pi=acos(-1.0)
+   dtheta=2.*pi/256.
+   
+   w = 5.0/3.0
+   m1 = (cos((m-1)*dtheta)-1.)/dtheta/dtheta
+   do i = 1,Nj
+     r_var(i) = (float(i)-0.5)*dr
+   end do
+
+
+   ! compute over extended region excluding boundary cells
+   do jk = 1, Nk-1
+     do ir = 1, Nj-1
+      A(ir,jk) =  (1.0-w)*A(ir,jk) + w*1.0/(2.0/dr/dr+2.0/dz/dz+m1/r_var(ir)/r_var(ir))*(                     &
+                 (1.0/dr/dr-1.0/2.0/r_var(ir)/dr)*A(ir-1,jk) &
+              +  (1.0/dr/dr+1.0/2.0/r_var(ir)/dr)*A(ir+1,jk) &
+              +  1.0/dz/dz                     *A(ir,jk+1) &
+              +  1.0/dz/dz                     *A(ir,jk-1) &
+              -  rho(ir,jk)    )
      end do
    end do
 
-   ! Do this in exchange halo...
-   !    - probably should have rank information so that physical boundaries aren't changed
-   !
 
-   ! compute over just the interior
-   do i = 1, N-1
-      A(i) = (1.0 - w)*A(i) + 0.5*w*( 0.5*(2.0*r_var(j)-dr)*dz/(r_var(j)*(dr*dr+dz*dz)+(m*dz*dr)**2)*Tmp(i-1,j) &
-                                  +  0.5*(2.0*r_var(j)+dr)*dz/(r_var(j)*(dr*dr+dz*dz)+(m*dz*dr)**2)*Tmp(i+1,j) &
-                                  +  r_var(j)*dr**2          /(r_var(j)*(dr*dr+dz*dz)+(m*dz*dr)**2)*Tmp(i,j+1) &
-                                  +  r_var(j)*dr**2          /(r_var(j)*(dr*dr+dz*dz)+(m*dz*dr)**2)*Tmp(i,j-1) &
-                                  +  r_var(j)*(dr*dz)**2*4.0*pi/(r_var(j)*(dr*dr+dz*dz)+(m*dz*dr)**2)*rho(i,j) )
+End Subroutine Relax
+
+Subroutine RelaxB(Nj, Nk, m, A, Tmp, rho, dr, dz)
+!
+! Relax_2D on the interior and the two halo cells shared with the left and right neighbors
+!   - shared halo cells are computed twice and are not exchanged
+!   - the outside halo cells are from neighbors and cannot be not computed
+!
+   Implicit None
+   Integer, intent(in   ) :: Nj, Nk, m
+   Real,    intent(inout) :: A(0:Nj+1,0:Nk+1)
+   Real,    intent(inout) :: Tmp(-1:Nj+1,-1:Nk+1)
+   Real,    intent(in)    :: rho(1:Nj,1:Nk),dr,dz
+   Real                   :: r_var(-1:Nj+1)
+   Real                   :: pi,dtheta,m1,w
+   Integer                :: ir,jk,i
+
+   pi=acos(-1.0)
+   dtheta=2.*pi/256.
+   
+   w = 5.0/3.0
+   m1 = (cos((m-1)*dtheta)-1.)/dtheta/dtheta
+   do i = 1,Nj
+     r_var(i) = (float(i)-0.5)*dr
    end do
 
 
-End Subroutine Relax_2D
+   ! compute over extended region excluding boundary cells
 
+   do jk = Nk-1,1,-1
+    do ir = Nj-1,1,-1
+    A(ir,jk) =  (1.0-w)*A(ir,jk) + w*1.0/(2.0/dr/dr+2.0/dz/dz+m1/r_var(ir)/r_var(ir))*(                     &
+                 (1.0/dr/dr-1.0/2.0/r_var(ir)/dr)*A(ir-1,jk) &
+              +  (1.0/dr/dr+1.0/2.0/r_var(ir)/dr)*A(ir+1,jk) &
+              +  1.0/dz/dz                     *A(ir,jk+1) &
+              +  1.0/dz/dz                     *A(ir,jk-1) &
+              -  rho(ir,jk)    )
+  
+     end do
+   end do
+
+End Subroutine RelaxB
+
+
+Subroutine Residual(Nj, Nk, m, A, Resid, rho, dr, dz)
+!
+! Relax_2D on the interior and the two halo cells shared with the left and right neighbors
+!   - shared halo cells are computed twice and are not exchanged
+!   - the outside halo cells are from neighbors and cannot be not computed
+!
+   Implicit None
+   Integer, intent(in   ) :: Nj, Nk, m
+   Real,    intent(inout) :: A(0:Nj+1,0:Nk+1)
+   Real,    intent(inout) :: Resid(-1:Nj+1,-1:Nk+1)
+   Real,    intent(in)    :: rho(1:Nj,1:Nk),dr,dz
+   Real                   :: r_var(-1:Nj+1)
+   Real                   :: pi,w,m1,dtheta
+   Integer                :: ir,jk,i
+
+
+   w = 1.0
+   pi=acos(-1.0)
+   dtheta = 2.0*pi/256.
+   m1 = (cos((m-1)*dtheta)-1.)/dtheta/dtheta
+   do i = 0,Nj
+     r_var(i) = (float(i)-0.5)*dr
+   end do
+
+!! Calculate the residual 
+   do jk = 1, Nk-1
+     do ir = 1, Nj-1
+      Resid(ir,jk) =    (                                               &
+                 (1.0/dr/dr-1.0/2.0/r_var(ir)/dr)*A(ir-1,jk)                &
+              +  (1.0/dr/dr+1.0/2.0/r_var(ir)/dr)*A(ir+1,jk)                &
+              +  1.0/dz/dz                     *A(ir,jk+1)                &
+              +  1.0/dz/dz                     *A(ir,jk-1)                &
+              - (2.0/dr/dr+2.0/dz/dz+m1/r_var(ir)/r_var(ir))*A(ir,jk) &  
+              -  rho(ir,jk)    )
+     end do
+   end do
+  do ir = 1,Nj-1
+  Resid(ir,0) = 0.0
+  end do
+ 
+End Subroutine Residual
 
 End Module MultiGrid
