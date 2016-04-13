@@ -7,10 +7,11 @@ OSLOWER = $(shell uname -s 2>/dev/null | tr [:upper:] [:lower:])
 
 
 CC = gcc
-FC = gfortran
+FC = gfortran 
 
 FOPT = -O3
-OMPFLAGS = -fopenmp
+OMPFLAGS = -fopenmp 
+FINC = -fdefault-real-8
 
 ifneq ($(OSLOWER),darwin)
    DATA_SIZE = -mcmodel=medium
@@ -24,6 +25,8 @@ FFLAGS := $(FOPT) $(FINC)
 FFLAGS += $(DATA_SIZE) 
 
 OBJS = defines_mod.o fft.o pot3.o boundary.o blktri.o
+# Objects used for relaxation routine.
+OBJS = defines_mod.o io.o multigrid.o relaxMod.o fft.o pot32.o boundary.o blktri.o
 
 #------------------------------------------------------------------
 
@@ -32,11 +35,22 @@ all: poisson_solver
 poisson_solver: $(OBJS) poisson_solver.o
 	$(FC) -o poisson_solver poisson_solver.o $(OBJS)
 
+poisson_multigrid: io.o multigrid.o poisson_multigrid.o
+	$(FC) -o poisson_multigrid poisson_multigrid.o multigrid.o io.o
+
+poisson_relax: io.o multigrid.o poissonRelax.o
+	$(FC) -o poisson_relax poissonRelax.o io.o multigrid.o
+
 check: poisson_solver
 	poisson_solver
 
+check-multi: poisson_multigrid
+	poisson_multigrid
+
+check-relax: poisson_relax
+	poisson_relax
 clean:
-	-rm -f *.o *.mod poisson_solver
+	-rm -f *.o *.mod poisson_solver out_* poisson_multigrid poisson_relax
 
 ########################################################################
 #  OBJECTS

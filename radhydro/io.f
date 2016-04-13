@@ -313,6 +313,7 @@ c         write(61,*) tmass,ajtot
                   u(j,k,l)=0.d0
                   w(j,k,l)=0.d0
                   p(j,k,l)=konst*rho(j,k,l)**gamma
+                  eps(j,k,l) = p(j,k,l)/(gamma-1.d0)
                end do
             end do
          end do
@@ -1204,14 +1205,6 @@ c
          gsoft = fgsoft*rof3n
          if (gsoft>0d0) tmassacc=0d0
 
-#if PARTICLE>0
-        if(read_particle_file)then
-         call read_particles(P_FILEID)
-        else
-         call initialize_particles()
-        endif
-        call set_particle_density()
-#endif
 
 
 !$OMP PARALLEL DEFAULT(SHARED)                                          &
@@ -1220,6 +1213,8 @@ c
 !$OMP END PARALLEL
          CALL BDYGEN(MAXTRM,ISYM,REDGE)
          CALL POT3(8,IPRINT)
+
+
 
 #if WIGGLE>0
          call delta(.false.)
@@ -1254,10 +1249,17 @@ c
 #endif
 
 !$OMP END PARALLEL
-
 #if PARTICLE>0
-      if(.not.read_particle_file)call set_particle_vel()
+        if(read_particle_file)then
+         call read_particles(P_FILEID)
+        else
+         call initialize_particles()
+        endif
+        call set_particle_density()
 #endif
+!#if PARTICLE>0
+!      if(.not.read_particle_file)call set_particle_vel()
+!#endif
 
       END IF
  
@@ -1395,11 +1397,10 @@ C....FIND POTENTIALS FOR INITIAL MODEL.
 #endif
 
 !$OMP END PARALLEL
- 
-#if PARTICLE>0
-      if(.not.read_particle_file)call set_particle_vel()
-#endif
-        
+!#if PARTICLE>0
+!      if(.not.read_particle_file)call set_particle_vel()
+!#endif
+
 !$OMP PARALLEL DEFAULT(SHARED) PRIVATE(LP,LHF,j,k,l,LHAF)                &
 !$OMP&  SHARED(rholmt,itype)
       if(itype.eq.7)then 
@@ -1503,7 +1504,14 @@ C....SET RHO AROUND Z-AXIS AND BELOW THE EQUATORIAL PLANE
    55 CONTINUE
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
-      
+#if PARTICLE>0
+        if(read_particle_file)then
+         call read_particles(P_FILEID)
+        else
+         call initialize_particles()
+        endif
+        call set_particle_density()
+#endif
       RETURN
       END
 
