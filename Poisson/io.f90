@@ -72,7 +72,7 @@ implicit none
 integer, intent(in)               :: J,K,b
 real                              :: A(:,:)
 integer                           :: i,l,fd
-character(len=*), parameter       :: fmt = "(a,i3,1x,i3,1x,1e22.10)"
+character(len=*), parameter       :: fmt = "(i3,1x,i3,1x,1e22.10)"
 character(len=*), intent(in)      :: id
 
 fd = 14
@@ -82,7 +82,7 @@ open(fd,file="out_" // id // ".txt")
 ! write data to file
 do l = b,K
  do i = b,J
-    write(fd,fmt) "i,l,A(i,l)=", i, l, A(i,l)
+    write(fd,fmt)  i, l, A(i,l)
  end do
 end do
 
