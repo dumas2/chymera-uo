@@ -210,13 +210,22 @@ C$OMP DO
         ENDIF
         POWRM=(-1.0)**M
         
+        if(l.eq.1)then
+        open(unit=59,file='boundaryConditions.dat',form='FORMATTED')
+         do j=2,jmax
+         write(59,"(i3,1x,i3,1x,1e16.5)") J,KMAX+1,PHI(J,KMAX+1,L)
+         end do
+         do k=2,kmax
+          write(59,"(i3,1x,i3,1x,1e16.5)") JMAX+1,K,PHI(JMAX+1,K,L)
+         end do
+        close(59)
+        end if
 C     (remember, densities are in array phi right now.)
         DO K=2,KMAX                                                    
           DO J=2,JMAX
             Y(J-1,K-1)=PIG4*PHI(J,K,L)
           ENDDO
         ENDDO                                                           
-
 C     Treat y on boundaries where phi is known.
         DO J=2,JMAX                                                    
           Y(J-1,KMAX-1)=Y(J-1,KMAX-1)-CNMAX*PHI(J,KMAX+1,L)
