@@ -23,16 +23,16 @@ do i = 1,imax
    A(jj-1,kk-1)   =  bndryValues(i)
 !   print *, jj, kk, jj-1, kk-1, A(jj-1,kk-1)
 end do
-do i = 1,255
-   read(57,fmt2)  jj,kk,bndryValues(i)
-   A(jj,kk)   =  bndryValues(i)
+!do i = 1,255
+!   read(57,fmt2)  jj,kk,bndryValues(i)
+!   A(jj,kk)   =  bndryValues(i)
 !   print *, jj, kk, jj-1, kk-1, A(jj-1,kk-1)
-end do
-do i = 1,63
-   read(57,fmt2)  jj,kk,bndryValues(i)
-   A(jj,kk)   =  bndryValues(i)
+!end do
+!do i = 1,63
+!   read(57,fmt2)  jj,kk,bndryValues(i)
+!   A(jj,kk)   =  bndryValues(i)
 !   print *, jj, kk, jj-1, kk-1, A(jj-1,kk-1)
-end do
+!end do
 close(fd)
 
 end subroutine readBoundary
@@ -42,26 +42,22 @@ subroutine readDensity(A,J,K)
 ! as calculated by fft.F by a call in pot3.F
 implicit none
 integer, intent(in)  :: J,K
-real   , intent(out) :: A(-1:J+1,-1:K+1)
+real   , intent(out) :: A(1:J,1:K)
 integer, parameter   :: fd=13
 character(len=*), parameter :: fmt="(i3,1x,i3,1x,1e16.5)"
 integer              :: ir,iz,jj,kk
 !imax=J+K-1
 
 !open file to read
-!open(unit=fd, file="densityArray.dat", FORM="UNFORMATTED")
-open(53, status="old",form="formatted")
+open(unit=fd, file="density.dat", FORM="FORMATTED")
 ! read in the data and assign it to array
-!   read(fd)  A
-!print *, "Read in density."
-!close(fd)
  do iz = 1,K-1
   do ir = 1,J-1
-      read(53,fmt) jj,kk,A(ir,iz)
+      read(fd,fmt) jj,kk,A(ir,iz)
 !      print *, jj,kk,ir,iz,A(ir,iz)
   end do
  end do
-close(53)
+close(fd)
 end subroutine readDensity
 
 
