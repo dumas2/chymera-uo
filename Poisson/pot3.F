@@ -226,6 +226,15 @@ C     (remember, densities are in array phi right now.)
             Y(J-1,K-1)=PIG4*PHI(J,K,L)
           ENDDO
         ENDDO                                                           
+       if(l.eq.1)then
+       open(unit=53,file="density.dat", FORM="formatted")  
+        DO K=2,KMAX
+          DO J=2,JMAX
+            write(53,"(i3,1x,i3,1x,1e16.5)") J-1,K-1,PIG4*PHI(J,K,L)
+          ENDDO
+        ENDDO
+       close(53)
+       end if
 C     Treat y on boundaries where phi is known.
         DO J=2,JMAX                                                    
           Y(J-1,KMAX-1)=Y(J-1,KMAX-1)-CNMAX*PHI(J,KMAX+1,L)
@@ -249,7 +258,15 @@ C
         CALL BLKTRI(1,1,KMAX-1,AN,BN,CN,1,JMAX-1,
      &        AM,BM,CM,JMAX-1,Y,IERROR,WFW)         
 C     Solution on 2-D grid is complete.
-
+        if(L.EQ.1) then
+        open(unit=51,file='fourierMatrix.dat',form='formatted')
+        DO K=2,KMAX
+          DO J=2,JMAX
+            write(51,"(i3,1x,i3,1x,1e16.5)") J-1,K-1,Y(J-1,K-1)
+          ENDDO
+        ENDDO
+        close(51)
+        end if
 C     Put transformed phi's from y into phi array.
         DO K=2,KMAX                                                    
           DO J=2,JMAX
