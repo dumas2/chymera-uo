@@ -1,0 +1,8 @@
+# program changes #include to include. to run on all files in directory
+# do something like. 
+#
+#for file in */*;do
+# ./changeInclude $file;
+#done
+#
+sed -i 's/#include/ include/g' $1 
