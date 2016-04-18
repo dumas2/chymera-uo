@@ -10,6 +10,7 @@ Program PoissonRelax
 !==============================================================================
 Use MultiGrid, only : Relax, Residual,RelaxB
 Use io       , only : readBoundary, readDensity, writeData
+Use MPI_F08  , only : MPI_Init, MPI_Finalize, MPI_Comm_rank, MPI_Comm_size
 
 Implicit None
 
@@ -18,16 +19,23 @@ integer, parameter :: Nk     =    64
 real   , parameter :: tol    =    1e-10
 
 integer   :: i,m,k,mn,ir,iz,p,je,ke
+integer   :: rank, comm_size
 integer   :: nsteps = 1
 integer   :: msteps = 3000
 integer   :: diag = 500  
 
-Real, allocatable :: V1h(:,:), Tmp(:,:)
-Real, allocatable :: rho(:,:),Resid(:,:)
+real, allocatable :: V1h(:,:), Tmp(:,:)
+real, allocatable :: rho(:,:),Resid(:,:)
 real      :: dr, dz, w, errmax
 
 character(len=6) :: iter
 character(len=6) :: numrlx
+
+! Initialize MPI library
+call MPI_Init()
+
+call MPI_Comm_size(MPI_COMM_WORLD, comm_size)
+call MPI_Comm_rank(MPI_COMM_WORLD, rank)
 
 !write nsteps to string for textual output
 write(numrlx,"(i6.6)") nsteps
@@ -140,6 +148,9 @@ end do ! While loop
 call writeData(1,Nj,Nk,V1h, "final" )
 
 deallocate(V1h,Tmp,rho,Resid)
+
+! Shutdown MPI
+call MPI_Finalize()
 
 end program PoissonRelax
 
