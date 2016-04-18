@@ -1,6 +1,6 @@
 program poissonSolver
   use defines_mod
-  use relaxmod
+!  use relaxmod
   implicit real*8(a-h,o-z)
   include "hydroparam.h"
   include "globals.h"
@@ -139,7 +139,7 @@ program poissonSolver
   CALL SETBDY(0,ISYM)
 !$OMP END PARALLEL
   CALL BDYGEN(MAXTRM,ISYM,REDGE)
-  CALL POT32(8,IPRINT)
+  CALL POT3(8,IPRINT)
 
 !!...Write gravitational potential to output file.
   write(x1,'(i6.6)')ITSTOP
