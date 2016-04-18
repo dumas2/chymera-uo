@@ -16,3 +16,20 @@ fort.2  - initial conditions, density_momentum.txt (ascii)
 fort.7  - restart.dat (binary)
 fort.5  - params.txt
 fort.23 - phi3d.000012 -. phi3d_000012.dat  (_* -> iteration #)
+
+Programs
+--------
+pot3.F              - Original potential solver that Chymera uses. In its
+                      current form, it calculates the solution and outputs
+                      m=1 solution in Fourier space, as well as output to
+                      boundary conditions.
+poisson_solver.F90  - Main driver to replace Chymera for testing the potential
+                      solver. 
+poissonRelax.F90    - Driver for the relaxation routine.
+pot32.F             - Modified potential solver that calls relaxation routine
+                      instead of matrix solver.
+boundary.F          - Generates boundary conditions.
+defines_mod.F90     - 
+multigrid.F90       - Contains relaxation and residual subroutines.
+relaxMod.F90        - Modular form of poissonRelax, called in pot32.F
+
