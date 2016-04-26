@@ -6,8 +6,8 @@
 OSLOWER = $(shell uname -s 2>/dev/null | tr [:upper:] [:lower:])
 
 
-CC = gcc
-FC = gfortran 
+CC = mpicc
+FC = mpif90
 
 FOPT = -O3
 OMPFLAGS = -fopenmp 
