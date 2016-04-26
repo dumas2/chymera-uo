@@ -37,27 +37,81 @@ close(fd)
 
 end subroutine readBoundary
 
-subroutine readDensity(A,J,K)
+subroutine readDensity(A,jmax,kmax)
 ! Reads in the fourier transformed density for a given mode,
 ! as calculated by fft.F by a call in pot3.F
+!
+! Note: jmax and kmax must be powers of 2 for multigrid to work
+!       interior for multigrid is (1:jmax-1,1:kmax-1)
+!
+use MPI_F08, only : MPI_Comm_rank, MPI_Comm_size, MPI_COMM_WORLD
+use MPI_F08, only : MPI_Send, MPI_Recv, MPI_DOUBLE_PRECISION, MPI_Status
 implicit none
-integer, intent(in)  :: J,K
-real   , intent(out) :: A(1:J,1:K)
+integer, intent(in)  :: jmax,kmax
+real   , intent(out) :: A(0:jmax,0:kmax) ! dimensions set up for multigrid, odd interior pts
+real   , allocatable :: buf(:,:)
 integer, parameter   :: fd=13
+integer              :: ir,iz,jj,kk,nr
+integer              :: rank, numRanks, bufSize, tag=11
+type(MPI_Status)     :: status
 character(len=*), parameter :: fmt="(i3,1x,i3,1x,1e16.5)"
-integer              :: ir,iz,jj,kk
-!imax=J+K-1
 
-!open file to read
-open(unit=fd, file="density.dat", FORM="FORMATTED")
-! read in the data and assign it to array
- do iz = 1,K-1
-  do ir = 1,J-1
-      read(fd,fmt) jj,kk,A(ir,iz)
-!      print *, jj,kk,ir,iz,A(ir,iz)
+call MPI_Comm_size(MPI_COMM_WORLD, numRanks)
+call MPI_Comm_rank(MPI_COMM_WORLD, rank)
+
+bufSize = (jmax+1)*(kmax-1)
+allocate(buf(jmax+1,kmax-1))  ! temporary buffer (interior points in z only)
+
+!! Rank 0 should read in data and then send it to cohorts
+!    - z dimension is broken into numRanks partitions
+!
+if (rank == 0) then
+  open(unit=fd, file="density.dat", FORM="FORMATTED")
+
+  ! read lower bc in z (global)
+  do ir = 0, jmax
+    read(fd,fmt) jj, kk, A(ir,0)
   end do
- end do
-close(fd)
+
+  ! read in data for rank 0 (interior only for z)
+  do iz = 1, kmax-1
+    do ir = 0, jmax
+      read(fd,fmt) jj, kk, A(ir,iz)
+    end do
+  end do
+
+  ! read in data for other ranks and send the buffer (interior only in z)
+  do nr = 1, numRanks-1
+    do iz = 1, kmax-1      ! interior points only
+      do ir = 0, jmax
+        read(fd,fmt) jj, kk, buf(ir,iz)
+      end do
+    end do
+    call MPI_Send(buf, bufSize, MPI_DOUBLE_PRECISION, nr, tag, MPI_COMM_WORLD)
+  end do
+
+  ! read upper bc in z (global)
+  do ir = 0, jmax
+    read(fd,fmt) jj, kk, A(ir,kmax)
+  end do
+
+  A(:,0   ) = 0.0d0   ! initialize lower boundary in z (0 for now)
+  A(:,kmax) = 0.0d0   ! initialize upper boundary in z (0 for now)
+
+  close(fd)
+
+else  ! receiving ranks (other than rank 0)
+
+  call MPI_Recv(buf, bufSize, MPI_DOUBLE_PRECISION, 0, tag, MPI_COMM_WORLD, status)
+
+  A( :    ,0       ) = 0.0d0   ! initialize lower boundary in z (0 for now)
+  A(0:jmax,1:kmax-1) = buf
+  A( :    ,  kmax  ) = 0.0d0   ! initialize upper boundary in z (0 for now)
+
+end if
+
+deallocate(buf)
+
 end subroutine readDensity
 
 
