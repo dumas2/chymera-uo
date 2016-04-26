@@ -8,18 +8,20 @@ Program PoissonRelax
 !
 !   Iterative (over)relaxation. 
 !==============================================================================
-Use MultiGrid, only : Relax, Residual,RelaxB
-Use io       , only : readBoundary, readDensity, writeData
-Use MPI_F08  , only : MPI_Init, MPI_Finalize, MPI_Comm_rank, MPI_Comm_size
-
-Implicit None
+use MultiGrid, only : Relax, Residual,RelaxB
+use io       , only : readBoundary, readDensity, writeData
+use MPI_F08  , only : MPI_Init, MPI_Finalize
+use MPI_F08  , only : MPI_Comm_rank, MPI_Comm_size, MPI_COMM_WORLD
+implicit none
 
 integer, parameter :: Nj     =    256
-integer, parameter :: Nk     =    64
 real   , parameter :: tol    =    1e-10
 
+integer, parameter :: NTk    =    64      ! number of z interior elements total
+integer            :: Nk                  ! number of z interior elements per rank in z
+
 integer   :: i,m,k,mn,ir,iz,p,je,ke
-integer   :: rank, comm_size
+integer   :: rank, numRanks
 integer   :: nsteps = 1
 integer   :: msteps = 3000
 integer   :: diag = 500  
@@ -34,10 +36,21 @@ character(len=6) :: numrlx
 ! Initialize MPI library
 call MPI_Init()
 
-call MPI_Comm_size(MPI_COMM_WORLD, comm_size)
+call MPI_Comm_size(MPI_COMM_WORLD, numRanks)
 call MPI_Comm_rank(MPI_COMM_WORLD, rank)
 
-!write nsteps to string for textual output
+! Calculate the number of z elements Nk for each rank (should be evenly distributed)
+Nk = NTk/numRanks
+if (numRanks*Nk /= NTk) then
+   if (rank == 0) then
+      print *, "ERROR: z dimension can't be evenly distributed"
+      print *, "numRanks is", numRanks, "Nk total is", NTk
+   end if
+   call MPI_Finalize()
+   stop 1
+end if
+
+! write nsteps to string for textual output
 write(numrlx,"(i6.6)") nsteps
 
 ! Define dr and dz, these should be passed in eventually
