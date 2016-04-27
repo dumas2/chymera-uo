@@ -62,7 +62,7 @@ m = 1
 
 ! Allocate arrays
 Allocate(V1h(0:Nj+1,0:Nk+1), Tmp(-1:Nj+1,-1:Nk+1))
-Allocate(rho(1:Nj,1:Nk), Resid(-1:Nj+1,-1:Nk+1))
+Allocate(rho(0:Nj,0:Nk), Resid(-1:Nj+1,-1:Nk+1))
 
 !! Initialize
 V1h =  0.0
@@ -80,12 +80,12 @@ call writeData(1,Nj,Nk,V1h, numrlx // ".000")
 errmax = 1e6
 mn = 0
 !do while(mn.lt.msteps)
-!do while(errmax.gt.tol)
+do while(errmax.gt.tol)
 !... Relax solution on 1h mesh
 
 !print *, "mn= ",mn
 !    -------------------------
- do i = 1, nsteps
+! do i = 1, nsteps
 mn = mn + 1
 !!! Update boundary before relaxing.
 !! Top boundary, calculated directly before call to potential solve
