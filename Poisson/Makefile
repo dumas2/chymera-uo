@@ -26,7 +26,7 @@ FFLAGS += $(DATA_SIZE)
 
 OBJS = defines_mod.o fft.o pot3.o boundary.o blktri.o
 # Objects used for relaxation routine.
-OBJS = defines_mod.o io.o multigrid.o relaxMod.o fft.o pot32.o boundary.o blktri.o
+OBJS_RELAX = defines_mod.o io.o multigrid.o relaxMod.o 
 
 #------------------------------------------------------------------
 
@@ -38,8 +38,8 @@ poisson_solver: $(OBJS) poisson_solver.o
 poisson_multigrid: io.o multigrid.o poisson_multigrid.o
 	$(FC) -o poisson_multigrid poisson_multigrid.o multigrid.o io.o
 
-poisson_relax: io.o multigrid.o poissonRelax.o
-	$(FC) -o poisson_relax poissonRelax.o io.o multigrid.o
+poisson_relax: $(OBJS_RELAX) poissonRelax.o
+	$(FC) -o poisson_relax poissonRelax.o $(OBJS_RELAX)
 
 check: poisson_solver
 	poisson_solver
