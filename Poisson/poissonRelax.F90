@@ -15,15 +15,15 @@ use MPI_F08  , only : MPI_Comm_rank, MPI_Comm_size, MPI_COMM_WORLD
 implicit none
 
 integer, parameter :: Nj     =    256
-real   , parameter :: tol    =    1e-10
+real   , parameter :: tol    =    1e-4
 
 integer, parameter :: NTk    =    64      ! number of z interior elements total
 integer            :: Nk                  ! number of z interior elements per rank in z
 
 integer   :: i,m,k,mn,ir,iz,p,je,ke
 integer   :: rank, numRanks
-integer   :: nsteps = 1
-integer   :: msteps = 3000
+integer   :: nsteps = 1000
+integer   :: msteps = 300
 integer   :: diag = 500  
 
 real, allocatable :: V1h(:,:), Tmp(:,:)
@@ -65,14 +65,14 @@ Allocate(V1h(0:Nj+1,0:Nk+1), Tmp(-1:Nj+1,-1:Nk+1))
 Allocate(rho(1:Nj,1:Nk), Resid(-1:Nj+1,-1:Nk+1))
 
 !! Initialize
-V1h =  -0.14
+V1h =  0.0
 rho =  0.0
 resid= 0.0
 
 !! Read in source term and boundary data from file
 call readDensity(rho,Nj,Nk)
 ! Assigns boundary data for potential to rho(:,Nk) and rho(Nj,:).
-call readBoundary(rho,Nj,Nk)! rho(:,Nk) and rho(Nj,:).
+!call readBoundary(rho,Nj,Nk)! rho(:,Nk) and rho(Nj,:).
 !call readBoundary(rho,Nj,Nk)
 
 !! CHANGE THIS so that we start on the coursest mesh, and go up!!!
@@ -80,7 +80,7 @@ call writeData(1,Nj,Nk,V1h, numrlx // ".000")
 errmax = 1e6
 mn = 0
 !do while(mn.lt.msteps)
-do while(errmax.gt.tol)
+!do while(errmax.gt.tol)
 !... Relax solution on 1h mesh
 
 !print *, "mn= ",mn
@@ -109,7 +109,7 @@ end do
 ! Relax on V1h using rho as source
   call RelaxB(Nj, Nk, m, V1h, Tmp, rho, dr, dz)
 
- end do
+! end do
 
 !! Call residual
 ! do i = 1, nsteps
