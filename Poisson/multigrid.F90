@@ -106,7 +106,7 @@ Subroutine Relax(Nj, Nk, m, A, Tmp, rho, dr, dz)
    Integer, intent(in   ) :: Nj, Nk, m
    Real,    intent(inout) :: A(0:Nj+1,0:Nk+1)
    Real,    intent(inout) :: Tmp(-1:Nj+1,-1:Nk+1)
-   Real,    intent(in)    :: rho(1:Nj+1,1:Nk+1),dr,dz
+   Real,    intent(in)    :: rho(0:Nj+1,0:Nk+1),dr,dz
    Real                   :: r_var(-1:Nj+1)
    Real                   :: pi,dtheta,m1,w
    Integer                :: ir,jk,i
@@ -146,7 +146,7 @@ Subroutine RelaxB(Nj, Nk, m, A, Tmp, rho, dr, dz)
    Integer, intent(in   ) :: Nj, Nk, m
    Real,    intent(inout) :: A(0:Nj+1,0:Nk+1)
    Real,    intent(inout) :: Tmp(-1:Nj+1,-1:Nk+1)
-   Real,    intent(in)    :: rho(1:Nj,1:Nk),dr,dz
+   Real,    intent(in)    :: rho(0:Nj,0:Nk),dr,dz
    Real                   :: r_var(-1:Nj+1)
    Real                   :: pi,dtheta,m1,w
    Integer                :: ir,jk,i
@@ -188,7 +188,7 @@ Subroutine Residual(Nj, Nk, m, A, Resid, rho, dr, dz)
    Integer, intent(in   ) :: Nj, Nk, m
    Real,    intent(inout) :: A(0:Nj+1,0:Nk+1)
    Real,    intent(inout) :: Resid(-1:Nj+1,-1:Nk+1)
-   Real,    intent(in)    :: rho(1:Nj,1:Nk),dr,dz
+   Real,    intent(in)    :: rho(0:Nj,0:Nk),dr,dz
    Real                   :: r_var(-1:Nj+1)
    Real                   :: pi,w,m1,dtheta
    Integer                :: ir,jk,i
@@ -204,7 +204,7 @@ Subroutine Residual(Nj, Nk, m, A, Resid, rho, dr, dz)
 
 !! Calculate the residual 
    do jk = 1, Nk-1
-     do ir = 1, Nj-1
+     do ir = 2, Nj-1
       Resid(ir,jk) =    (                                               &
                  (1.0/dr/dr-1.0/2.0/r_var(ir)/dr)*A(ir-1,jk)                &
               +  (1.0/dr/dr+1.0/2.0/r_var(ir)/dr)*A(ir+1,jk)                &
