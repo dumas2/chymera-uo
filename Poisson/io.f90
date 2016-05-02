@@ -182,8 +182,44 @@ call nc_check( nf90_close(ncid) )
 
 end subroutine writeDataNetCDF
 
+subroutine initNetCDFFile(id, jmax, kmax, lmax)
+  use netcdf
+  implicit none
+  integer, intent(in) :: id, jmax, kmax, lmax
+
+  integer, parameter :: NDIMS = 2
+  integer :: ncid, j_dimid, k_dimid, dimids(NDIMS), varid
+
+  print *, id, jmax, kmax, lmax
+
+  !! define meta data for the file
+  !
+  ! create the netcdf file, overwriting the file if it already exists
+  call nc_check( nf90_create("rho3d_" // "0000001" // ".nc", NF90_CLOBBER, ncid) )
+
+  ! define the dimensions
+  call nc_check( nf90_def_dim(ncid, "R", jmax, j_dimid) )
+  call nc_check( nf90_def_dim(ncid, "Z", kmax, k_dimid) )
+
+  ! note that fortran arrays are stored in column-major order
+  dimids = [k_dimid, j_dimid]
+
+  call nc_check( nf90_def_var(ncid, "density", NF90_FLOAT, dimids, varid) )
+
+  ! finished creating metadata
+  call nc_check( nf90_enddef(ncid) )
+
+  ! write data to file
+  !call nc_check( nf90_put_var(ncid, varid, A) )
+
+  ! close the file
+  call nc_check( nf90_close(ncid) )
+
+end subroutine initNetCDFFile
+
 subroutine nc_check(status)
   use netcdf
+  implicit none
   integer, intent(in) :: status
 
   if (status /= nf90_noerr) then
