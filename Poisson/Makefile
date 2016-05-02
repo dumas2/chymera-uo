@@ -11,7 +11,7 @@ FC = mpif90
 
 FOPT = -O3
 OMPFLAGS = -fopenmp 
-FINC = -fdefault-real-8
+FINC = -fdefault-real-8 -I$(NETCDF_ROOT)/include
 
 ifneq ($(OSLOWER),darwin)
    DATA_SIZE = -mcmodel=medium
