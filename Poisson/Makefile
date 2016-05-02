@@ -35,7 +35,7 @@ LIBS = -L$(NETCDF_ROOT)/lib -lnetcdff
 all: poisson_solver
 
 poisson_solver: $(OBJS) poisson_solver.o
-	$(FC) -o poisson_solver poisson_solver.o $(OBJS)
+	$(FC) -o poisson_solver poisson_solver.o $(OBJS) $(LIBS)
 
 poisson_multigrid: io.o multigrid.o poisson_multigrid.o
 	$(FC) -o poisson_multigrid poisson_multigrid.o multigrid.o io.o
