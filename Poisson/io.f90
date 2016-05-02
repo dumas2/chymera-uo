@@ -141,4 +141,57 @@ close(fd)
 
 end subroutine writeData
 
+subroutine writeDataNetCDF(b,J,K,A,id)
+! Writes array as a netCDF file
+use netcdf
+implicit none
+
+integer, intent(in)               :: J,K,b
+real                              :: A(:,:)
+integer                           :: i,l
+character(len=*), parameter       :: fmt = "(i3,1x,i3,1x,1e22.10)"
+character(len=*), intent(in)      :: id
+
+! netCDF variables
+integer, parameter :: NDIMS = 2
+integer :: ncid, j_dimid, k_dimid, dimids(NDIMS), varid
+
+!! First define meta data for the file
+!
+
+! create the netcdf file, overwriting the file if it already exists
+call nc_check( nf90_create("out_" // id // ".nc", NF90_CLOBBER, ncid) )
+
+! define the dimensions
+call nc_check( nf90_def_dim(ncid, "J", J, j_dimid) )
+call nc_check( nf90_def_dim(ncid, "K", K, k_dimid) )
+
+! note that fortran arrays are stored in column-major order
+dimids = [k_dimid, j_dimid]
+
+call nc_check( nf90_def_var(ncid, "density", NF90_FLOAT, dimids, varid) )
+
+! finished creating metadata
+call nc_check( nf90_enddef(ncid) )
+
+! write data to file
+call nc_check( nf90_put_var(ncid, varid, A) )
+
+! close the file
+call nc_check( nf90_close(ncid) )
+
+end subroutine writeDataNetCDF
+
+subroutine nc_check(status)
+  use netcdf
+  integer, intent(in) :: status
+
+  if (status /= nf90_noerr) then
+     print *, "ERROR in netCDF call, status is:", trim(nf90_strerror(status))
+
+     call MPI_Finalize
+     STOP 1
+  end if
+end subroutine nc_check
+
 end module io
