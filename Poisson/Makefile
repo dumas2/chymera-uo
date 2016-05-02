@@ -24,9 +24,11 @@ CONSERVEOPT =
 FFLAGS := $(FOPT) $(FINC)
 FFLAGS += $(DATA_SIZE) 
 
-OBJS = defines_mod.o fft.o pot3.o boundary.o blktri.o
+OBJS = defines_mod.o fft.o pot3.o boundary.o blktri.o io.o
 # Objects used for relaxation routine.
 OBJS_RELAX = defines_mod.o io.o multigrid.o relaxMod.o 
+
+LIBS = -L$(NETCDF_ROOT)/lib -lnetcdff
 
 #------------------------------------------------------------------
 
@@ -39,7 +41,7 @@ poisson_multigrid: io.o multigrid.o poisson_multigrid.o
 	$(FC) -o poisson_multigrid poisson_multigrid.o multigrid.o io.o
 
 poisson_relax: $(OBJS_RELAX) poissonRelax.o
-	$(FC) -o poisson_relax poissonRelax.o $(OBJS_RELAX)
+	$(FC) -o poisson_relax poissonRelax.o $(OBJS_RELAX) $(LIBS)
 
 check: poisson_solver
 	poisson_solver
