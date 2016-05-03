@@ -9,16 +9,17 @@ Program PoissonRelax
 !   Iterative (over)relaxation. 
 !==============================================================================
 use MultiGrid, only : Relax, Residual,RelaxB
-use io       , only : readBoundary, readDensity, writeData
+use io       , only : readDensity, writeData, initFileNetCDF, writeDataNetCDF
 use MPI_F08  , only : MPI_Init, MPI_Finalize
 use MPI_F08  , only : MPI_Comm_rank, MPI_Comm_size, MPI_COMM_WORLD
 implicit none
 
-integer, parameter :: Nj     =    256
-real   , parameter :: tol    =    1e-4
+real   , parameter :: tol  =  1e-4
 
-integer, parameter :: NTk    =    64      ! number of z interior elements total
-integer            :: Nk                  ! number of z interior elements per rank in z
+integer, parameter :: Nj   =  256     ! number of r interior elements
+integer, parameter :: NTk  =   64     ! number of z interior elements total
+integer, parameter :: Nl   =    1     ! number of phi interior elements
+integer            :: Nk              ! number of z interior elements per rank in z
 
 integer   :: i,m,k,mn,ir,iz,p,je,ke
 integer   :: rank, numRanks
@@ -61,8 +62,8 @@ dz = 0.09316442463639991
 m = 1
 
 ! Allocate arrays
-Allocate(V1h(0:Nj+1,0:Nk+1), Tmp(-1:Nj+1,-1:Nk+1))
-Allocate(rho(0:Nj,0:Nk), Resid(-1:Nj+1,-1:Nk+1))
+Allocate(V1h(-1:Nj+1,-1:Nk+1),   Tmp(-1:Nj+1,-1:Nk+1))
+Allocate(rho(-1:Nj+1,-1:Nk+1), Resid(-1:Nj+1,-1:Nk+1))
 
 !! Initialize
 V1h =  0.0
@@ -71,12 +72,16 @@ resid= 0.0
 
 !! Read in source term and boundary data from file
 call readDensity(rho,Nj,Nk)
-! Assigns boundary data for potential to rho(:,Nk) and rho(Nj,:).
-!call readBoundary(rho,Nj,Nk)! rho(:,Nk) and rho(Nj,:).
-!call readBoundary(rho,Nj,Nk)
 
 !! CHANGE THIS so that we start on the coursest mesh, and go up!!!
-call writeData(1,Nj,Nk,V1h, numrlx // ".000")
+!call writeData(1,Nj,Nk,V1h, numrlx // ".000")
+
+call writeDataNetCDF(rho, 1, Nj, Nk, Ntk, Nl)
+
+call initFileNetCDF(1, Nj, Nk, Ntk, Nl)
+call MPI_Finalize
+STOP 0
+
 errmax = 1e6
 mn = 0
 !do while(mn.lt.msteps)

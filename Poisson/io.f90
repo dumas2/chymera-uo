@@ -1,5 +1,13 @@
 module io
 
+  ! dimension ids
+  integer :: rDimId, zDimId, phiDimId, modeDimId
+
+  ! variable ids
+  integer :: jmaxVarId, kmaxVarId, lmaxVarId, ktmaxVarId, iterVarId  ! scalars
+  integer :: rhoModeVarId, residVarId                                ! 2D arrays
+  integer :: rhoVarId                                                ! 3D arrays
+
 CONTAINS
 
 subroutine readBoundary(A,J,K)
@@ -48,8 +56,8 @@ use MPI_F08, only : MPI_Comm_rank, MPI_Comm_size, MPI_COMM_WORLD
 use MPI_F08, only : MPI_Send, MPI_Recv, MPI_DOUBLE_PRECISION, MPI_Status
 implicit none
 integer, intent(in)  :: jmax,kmax
-real   , intent(out) :: A(0:jmax,0:kmax) ! dimensions set up for multigrid, odd interior pts
-real   , allocatable :: buf(:,:)
+real   , intent(out) :: A(-1:jmax+1,-1:kmax+1) ! dimensions for multigrid, odd interior pts, 2 halo cells
+real   , allocatable :: buf(:,:), bc(:)
 integer, parameter   :: fd=13
 integer              :: ir,iz,jj,kk,nr
 integer              :: rank, numRanks, bufSize, tag=11
@@ -59,8 +67,13 @@ character(len=*), parameter :: fmt="(i3,1x,i3,1x,1e16.5)"
 call MPI_Comm_size(MPI_COMM_WORLD, numRanks)
 call MPI_Comm_rank(MPI_COMM_WORLD, rank)
 
-bufSize = (jmax+1)*(kmax-1)
-allocate(buf(jmax+1,kmax-1))  ! temporary buffer (interior points in z only)
+bufSize = (jmax+3)*(kmax+3)
+allocate(buf(-1:jmax+1,-1:kmax+1))
+allocate(bc (-1:jmax+1))         ! boundary conditions in z
+
+! initialize so that boundaries will be zero
+buf = 0.0
+bc  = 0.0
 
 !! Rank 0 should read in data and then send it to cohorts
 !    - z dimension is broken into numRanks partitions
@@ -68,45 +81,55 @@ allocate(buf(jmax+1,kmax-1))  ! temporary buffer (interior points in z only)
 if (rank == 0) then
   open(unit=fd, file="density.dat", FORM="FORMATTED")
 
-  ! read lower bc in z (global)
-  do ir = 0, jmax
-    read(fd,fmt) jj, kk, A(ir,0)
-  end do
+  buf(:,    -1) = 0.0    ! extra boundaries only needed in neighbor below
 
-  ! read in data for rank 0 (interior only for z)
-  do iz = 1, kmax-1
+  ! read in data for rank 0
+  do iz = 0, kmax
     do ir = 0, jmax
-      read(fd,fmt) jj, kk, A(ir,iz)
+      read(fd,fmt) jj, kk, buf(ir,iz)
+      print *, ir, iz
     end do
   end do
+  if (0 /= numRanks-1) then   ! extra boundary cells (kmax+1) extends into neighbor above
+    do ir = 0, jmax
+      read(fd,fmt) jj, kk, buf(ir,kmax+1)
+    end do
+  else
+      buf(:,kmax+1) = 0.0     ! extra boundary cells (kmax+1) not needed
+  end if
 
-  ! read in data for other ranks and send the buffer (interior only in z)
+  A(:,:) = buf(:,:)      ! copy entire array
+
+  buf(:,-1) = buf(:,kmax-1)  ! lower bc for neigbor copied from last interior cell of previous
+  buf(:, 0) = buf(:,kmax  )  ! lower shared boundary for neigbor from shared upper cell of previous
+  buf(:, 1) = buf(:,kmax+1)  ! first interior cell for neigbor upper boundary cell of previous
+
+  ! read in data for other ranks and send the buffer
   do nr = 1, numRanks-1
-    do iz = 1, kmax-1      ! interior points only
+    do iz = 2, kmax          ! halo and shared cell (iz=-1:0) already copied
       do ir = 0, jmax
         read(fd,fmt) jj, kk, buf(ir,iz)
       end do
     end do
+    if (nr /= numRanks-1) then
+      do ir = 0, jmax
+        read(fd,fmt) jj, kk, buf(ir,kmax+1)
+      end do
+    else
+      buf(kmax+1,:) = 0.0     ! extra boundaries only needed in neighbor above
+    end if
     call MPI_Send(buf, bufSize, MPI_DOUBLE_PRECISION, nr, tag, MPI_COMM_WORLD)
+    buf(:,-1) = buf(:,kmax-1)  ! lower bc for neigbor copied from last interior cell of previous
+    buf(:, 0) = buf(:,kmax  )  ! lower shared boundary for neigbor from shared upper cell of previous
+    buf(:, 1) = buf(:,kmax+1)  ! first interior cell for neigbor upper boundary cell of previous
   end do
-
-  ! read upper bc in z (global)
-  do ir = 0, jmax
-    read(fd,fmt) jj, kk, A(ir,kmax)
-  end do
-
-  A(:,0   ) = 0.0d0   ! initialize lower boundary in z (0 for now)
-  A(:,kmax) = 0.0d0   ! initialize upper boundary in z (0 for now)
 
   close(fd)
 
 else  ! receiving ranks (other than rank 0)
 
   call MPI_Recv(buf, bufSize, MPI_DOUBLE_PRECISION, 0, tag, MPI_COMM_WORLD, status)
-
-  A( :    ,0       ) = 0.0d0   ! initialize lower boundary in z (0 for now)
-  A(0:jmax,1:kmax-1) = buf
-  A( :    ,  kmax  ) = 0.0d0   ! initialize upper boundary in z (0 for now)
+  A(:,:) = buf(:,:)      ! copy entire array
 
 end if
 
@@ -141,54 +164,40 @@ close(fd)
 
 end subroutine writeData
 
-subroutine writeDataNetCDF(b,J,K,A,id)
-! Writes array as a netCDF file
-use netcdf
-implicit none
+subroutine writeDataNetCDF(rhoMode, id, jmax, kmax, ktmax, lmax)
+  ! Writes array as a netCDF file
+  use netcdf
+  implicit none
+  integer, intent(in) :: id, jmax, kmax, ktmax, lmax
+  real, intent(in)    :: rhoMode(:,:)
 
-integer, intent(in)               :: J,K,b
-real                              :: A(:,:)
-integer                           :: i,l
-character(len=*), parameter       :: fmt = "(i3,1x,i3,1x,1e22.10)"
-character(len=*), intent(in)      :: id
+  ! netCDF variables
+  integer, parameter :: NDIMS = 2
+  integer :: ncid, j_dimid, k_dimid, dimids(NDIMS), varid
 
-! netCDF variables
-integer, parameter :: NDIMS = 2
-integer :: ncid, j_dimid, k_dimid, dimids(NDIMS), varid
+  ! initialize netCDF metadata
+  call initFileNetCDF(id, jmax, kmax, ktmax, lmax)
 
-!! First define meta data for the file
-!
+  call nc_check( nf90_open("rho3d_" // "0000001" // ".nc", NF90_WRITE, ncid) )
 
-! create the netcdf file, overwriting the file if it already exists
-call nc_check( nf90_create("out_" // id // ".nc", NF90_CLOBBER, ncid) )
+  ! write data to file
+  call nc_check( nf90_put_var(ncid, rhoModeVarId, rhoMode) )
 
-! define the dimensions
-call nc_check( nf90_def_dim(ncid, "J", J, j_dimid) )
-call nc_check( nf90_def_dim(ncid, "K", K, k_dimid) )
-
-! note that fortran arrays are stored in column-major order
-dimids = [k_dimid, j_dimid]
-
-call nc_check( nf90_def_var(ncid, "density", NF90_FLOAT, dimids, varid) )
-
-! finished creating metadata
-call nc_check( nf90_enddef(ncid) )
-
-! write data to file
-call nc_check( nf90_put_var(ncid, varid, A) )
-
-! close the file
-call nc_check( nf90_close(ncid) )
+  ! close the file
+  call nc_check( nf90_close(ncid) )
 
 end subroutine writeDataNetCDF
 
-subroutine initFileNetCDF(id, jmax, kmax, lmax)
+subroutine initFileNetCDF(id, jmax, kmax, ktmax, lmax)
   use netcdf
   implicit none
-  integer, intent(in) :: id, jmax, kmax, lmax
+  integer, intent(in) :: id, jmax, kmax, ktmax, lmax
 
   integer, parameter :: NDIMS = 2
   integer :: ncid, j_dimid, k_dimid, dimids(NDIMS), varid
+  character(len=15) :: name
+
+  integer xtype, num_dims, scalar
 
   print *, id, jmax, kmax, lmax
 
@@ -198,21 +207,62 @@ subroutine initFileNetCDF(id, jmax, kmax, lmax)
   call nc_check( nf90_create("rho3d_" // "0000001" // ".nc", NF90_CLOBBER, ncid) )
 
   ! define the dimensions
-  call nc_check( nf90_def_dim(ncid, "R", jmax, j_dimid) )
-  call nc_check( nf90_def_dim(ncid, "Z", kmax, k_dimid) )
+  call nc_check( nf90_def_dim(ncid, "r", jmax+3, rDimId) )          ! range (-1:jmax+1)
+  call nc_check( nf90_def_dim(ncid, "z", ktmax+3, zDimId) )         ! range (-1:ktmax+1)
+  call nc_check( nf90_def_dim(ncid, "phi", lmax+3, phiDimId) )      ! range (-1:lmax+1)
+  call nc_check( nf90_def_dim(ncid, "mode", kmax+3, modeDimId) )    ! range (-1:kmax+1)
 
-  ! note that fortran arrays are stored in column-major order
-  dimids = [k_dimid, j_dimid]
+  ! scalar variables
+  call nc_check( nf90_def_var(ncid, "jmax", NF90_INT, jmaxVarId) )
+  call nc_check( nf90_put_att(ncid, jmaxVarId, "long_name", "r dim size is jmax+3, indices (-1:jmax+1)") )
+  print *, jmaxVarId
+  call nc_check( nf90_def_var(ncid, "kmax", NF90_INT, kmaxVarId) )
+  call nc_check( nf90_put_att(ncid, kmaxVarId, "long_name", "z dim size per rank is kmax+3, indices (-1:kmax+1)") )
+  print *, kmaxVarId
+  call nc_check( nf90_def_var(ncid, "ktmax", NF90_INT, ktmaxVarId) )
+  call nc_check( nf90_put_att(ncid, ktmaxVarId, "long_name", "z dim size total is ktmax+3, indices (-1:ktmax+1)") )
+  print *, kmaxVarId
+  call nc_check( nf90_def_var(ncid, "lmax", NF90_INT, lmaxVarId) )
+  call nc_check( nf90_put_att(ncid, lmaxVarId, "long_name", "phi dim size is lmax+3, indices (-1:lmax+1)") )
+  print *, lmaxVarId
+  call nc_check( nf90_def_var(ncid, "iter", NF90_INT, iterVarId) )
+  call nc_check( nf90_put_att(ncid, iterVarId, "long_name", "iteration number") )
+  print *, iterVarId
 
-  call nc_check( nf90_def_var(ncid, "rho", NF90_FLOAT, dimids, varid) )
-  call nc_check( nf90_put_att(ncid, varid, "long_name", "density distribution") )
-  call nc_check( nf90_put_att(ncid, varid, "units", "g/cm^3?") )
+  !! note that fortran arrays are stored in column-major order
+  !
+  ! 3D arrays
+  call nc_check( nf90_def_var(ncid, "rho", NF90_FLOAT, [phiDimId, zDimId, rDimId], rhoVarId) )
+  call nc_check( nf90_put_att(ncid, rhoVarId, "long_name", "density distribution") )
+  call nc_check( nf90_put_att(ncid, rhoVarId, "units", "g/cm^3?") )
+  print *, rhoVarId
+  ! 2D arrays
+  call nc_check( nf90_def_var(ncid, "rho_mode", NF90_FLOAT, [zDimId, rDimId], rhoModeVarId) )
+  call nc_check( nf90_put_att(ncid, rhoModeVarId, "long_name", "transformed density distribution") )
+  print *, rhoModeVarId
+  call nc_check( nf90_def_var(ncid, "resid", NF90_FLOAT, [zDimId, rDimId], residVarId) )
+  call nc_check( nf90_put_att(ncid, residVarId, "long_name", "relaxation residual") )
+  print *, residVarId
 
   ! finished creating metadata
   call nc_check( nf90_enddef(ncid) )
 
   ! write data to file
+  call nc_check( nf90_put_var(ncid, jmaxVarId,  jmax) )
+  call nc_check( nf90_put_var(ncid, kmaxVarId,  kmax) )
+  call nc_check( nf90_put_var(ncid, lmaxVarId,  lmax) )
+  call nc_check( nf90_put_var(ncid, ktmaxVarId, ktmax) )
+  call nc_check( nf90_put_var(ncid, iterVarId, 13) )
   !call nc_check( nf90_put_var(ncid, varid, A) )
+
+  call nc_check( nf90_get_var(ncid, jmaxVarId, scalar) )
+  print *, "jmax", scalar
+  call nc_check( nf90_get_var(ncid, kmaxVarId, scalar) )
+  print *, "kmax", scalar
+  call nc_check( nf90_get_var(ncid, lmaxVarId, scalar) )
+  print *, "lmax", scalar
+  call nc_check( nf90_get_var(ncid, iterVarId, scalar) )
+  print *, "iter", scalar
 
   ! close the file
   call nc_check( nf90_close(ncid) )
