@@ -1,0 +1,16 @@
+rho3d.0000001.nc
+
+scalars
+jmax,kmax,lmax
+
+dimensions
+j,k,l,m
+
+variables
+
+rho
+pot3d
+time - scalar
+
+rho_mode (2D)
+resid (2D others 3D?)
