@@ -182,7 +182,7 @@ call nc_check( nf90_close(ncid) )
 
 end subroutine writeDataNetCDF
 
-subroutine initNetCDFFile(id, jmax, kmax, lmax)
+subroutine initFileNetCDF(id, jmax, kmax, lmax)
   use netcdf
   implicit none
   integer, intent(in) :: id, jmax, kmax, lmax
@@ -204,7 +204,9 @@ subroutine initNetCDFFile(id, jmax, kmax, lmax)
   ! note that fortran arrays are stored in column-major order
   dimids = [k_dimid, j_dimid]
 
-  call nc_check( nf90_def_var(ncid, "density", NF90_FLOAT, dimids, varid) )
+  call nc_check( nf90_def_var(ncid, "rho", NF90_FLOAT, dimids, varid) )
+  call nc_check( nf90_put_att(ncid, varid, "long_name", "density distribution") )
+  call nc_check( nf90_put_att(ncid, varid, "units", "g/cm^3?") )
 
   ! finished creating metadata
   call nc_check( nf90_enddef(ncid) )
@@ -215,7 +217,7 @@ subroutine initNetCDFFile(id, jmax, kmax, lmax)
   ! close the file
   call nc_check( nf90_close(ncid) )
 
-end subroutine initNetCDFFile
+end subroutine initFileNetCDF
 
 subroutine nc_check(status)
   use netcdf
