@@ -57,7 +57,7 @@ use MPI_F08, only : MPI_Send, MPI_Recv, MPI_DOUBLE_PRECISION, MPI_Status
 implicit none
 integer, intent(in)  :: jmax,kmax
 real   , intent(out) :: A(-1:jmax+1,-1:kmax+1) ! dimensions for multigrid, odd interior pts, 2 halo cells
-real   , allocatable :: buf(:,:), bc(:)
+real   , allocatable :: buf(:,:)
 integer, parameter   :: fd=13
 integer              :: ir,iz,jj,kk,nr
 integer              :: rank, numRanks, bufSize, tag=11
@@ -69,11 +69,9 @@ call MPI_Comm_rank(MPI_COMM_WORLD, rank)
 
 bufSize = (jmax+3)*(kmax+3)
 allocate(buf(-1:jmax+1,-1:kmax+1))
-allocate(bc (-1:jmax+1))         ! boundary conditions in z
 
 ! initialize so that boundaries will be zero
 buf = 0.0
-bc  = 0.0
 
 !! Rank 0 should read in data and then send it to cohorts
 !    - z dimension is broken into numRanks partitions
@@ -87,7 +85,6 @@ if (rank == 0) then
   do iz = 0, kmax
     do ir = 0, jmax
       read(fd,fmt) jj, kk, buf(ir,iz)
-      print *, ir, iz
     end do
   end do
   if (0 /= numRanks-1) then   ! extra boundary cells (kmax+1) extends into neighbor above
@@ -179,6 +176,8 @@ subroutine writeDataNetCDF(rhoMode, id, jmax, kmax, ktmax, lmax)
   call initFileNetCDF(id, jmax, kmax, ktmax, lmax)
 
   call nc_check( nf90_open("rho3d_" // "0000001" // ".nc", NF90_WRITE, ncid) )
+
+print *, "DID open netCDF file."
 
   ! write data to file
   call nc_check( nf90_put_var(ncid, rhoModeVarId, rhoMode) )
