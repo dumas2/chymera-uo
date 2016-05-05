@@ -164,26 +164,69 @@ end subroutine writeData
 subroutine writeDataNetCDF(rhoMode, id, jmax, kmax, ktmax, lmax)
   ! Writes array as a netCDF file
   use netcdf
+  use MPI_F08, only : MPI_Comm_rank, MPI_Comm_size, MPI_COMM_WORLD
+  use MPI_F08, only : MPI_Status, MPI_DOUBLE_PRECISION
   implicit none
   integer, intent(in) :: id, jmax, kmax, ktmax, lmax
-  real, intent(in)    :: rhoMode(:,:)
+  real, intent(in)    :: rhoMode(-1:,-1:)
+
+  ! local variables
+  integer             :: rank, numRanks, bufSize, nr, tag
+  real, allocatable   :: buf(:,:)
+  character(len=64)   :: filename
+  type(MPI_Status)    :: status
 
   ! netCDF variables
-  integer, parameter :: NDIMS = 2
-  integer :: ncid, j_dimid, k_dimid, dimids(NDIMS), varid
+  integer, parameter :: NDIMS = 4
+  integer :: ncid, dimids(NDIMS)
 
-  ! initialize netCDF metadata
-  call initFileNetCDF(id, jmax, kmax, ktmax, lmax)
+  call MPI_Comm_size(MPI_COMM_WORLD, numRanks)
+  call MPI_Comm_rank(MPI_COMM_WORLD, rank)
 
-  call nc_check( nf90_open("rho3d_" // "0000001" // ".nc", NF90_WRITE, ncid) )
+  !! Rank 0 should recv data from cohorts and then write it
+  !    - z dimension is broken into numRanks partitions
+  !
+  if (rank == 0) then
+     ! allocate memory for just the interior in z
+     bufSize = (jmax+3)*(kmax-1)
+     allocate(buf(-1:jmax+1,1:kmax-1))
 
-print *, "DID open netCDF file."
+    ! initialize netCDF metadata
+    call initFileNetCDF(id, jmax, kmax, ktmax, lmax)
 
-  ! write data to file
-  call nc_check( nf90_put_var(ncid, rhoModeVarId, rhoMode) )
+    write(filename,'("rho3d_", i7.7, ".nc")') id
+    call nc_check( nf90_open(trim(filename), NF90_WRITE, ncid) )
 
-  ! close the file
-  call nc_check( nf90_close(ncid) )
+    ! write lower (in z) boundary values plus interior of rank 0
+    call nc_check( nf90_put_var(ncid, rhoModeVarId, rhoMode(:,-1:kmax-1)) )
+
+    ! recv data from other ranks and write it to the netCDF file
+    do nr = 1, numRanks-1
+      call MPI_Recv(buf, bufSize, MPI_DOUBLE_PRECISION, nr, tag, MPI_COMM_WORLD, status)
+      call nc_check( nf90_put_var(ncid, rhoModeVarId, buf) )
+    end do
+
+    ! top two boundary layers in z (kmax:kmax+1) obtained from last rank
+    if (numRanks > 1) then
+      call MPI_Recv(buf, 2*(jmax+3), MPI_DOUBLE_PRECISION, numRanks-1, tag, MPI_COMM_WORLD, status)
+      call nc_check( nf90_put_var(ncid, rhoModeVarId, buf(:,1:2)) )
+    else
+      call nc_check( nf90_put_var(ncid, rhoModeVarId, rhoMode(:,kmax:kmax+1)) )
+    end if
+
+    ! close the file
+    call nc_check( nf90_close(ncid) )
+    deallocate(buf)
+
+  else
+
+    ! send data from interior (in z) to rank 0 (-1:jmax+1,1:kmax-1)
+    call MPI_Send(rhoMode(-1,1), bufSize, MPI_DOUBLE_PRECISION, 0, tag, MPI_COMM_WORLD)
+    if (rank == numRanks-1) then ! send top two boundary layers in z (kmax:kmax+1)
+      call MPI_Send(rhoMode(-1,kmax), 2*(jmax+3), MPI_DOUBLE_PRECISION, 0, tag, MPI_COMM_WORLD)
+    end if
+
+  end if
 
 end subroutine writeDataNetCDF
 
@@ -194,16 +237,13 @@ subroutine initFileNetCDF(id, jmax, kmax, ktmax, lmax)
 
   integer, parameter :: NDIMS = 2
   integer :: ncid, j_dimid, k_dimid, dimids(NDIMS), varid
-  character(len=15) :: name
-
-  integer xtype, num_dims, scalar
-
-  print *, id, jmax, kmax, lmax
+  character(len=64) :: filename
 
   !! define meta data for the file
   !
   ! create the netcdf file, overwriting the file if it already exists
-  call nc_check( nf90_create("rho3d_" // "0000001" // ".nc", NF90_CLOBBER, ncid) )
+  write(filename,'("rho3d_", i7.7, ".nc")') id
+  call nc_check( nf90_create(trim(filename), NF90_CLOBBER, ncid) )
 
   ! define the dimensions
   call nc_check( nf90_def_dim(ncid, "r", jmax+3, rDimId) )          ! range (-1:jmax+1)
@@ -214,34 +254,26 @@ subroutine initFileNetCDF(id, jmax, kmax, ktmax, lmax)
   ! scalar variables
   call nc_check( nf90_def_var(ncid, "jmax", NF90_INT, jmaxVarId) )
   call nc_check( nf90_put_att(ncid, jmaxVarId, "long_name", "r dim size is jmax+3, indices (-1:jmax+1)") )
-  print *, jmaxVarId
   call nc_check( nf90_def_var(ncid, "kmax", NF90_INT, kmaxVarId) )
   call nc_check( nf90_put_att(ncid, kmaxVarId, "long_name", "z dim size per rank is kmax+3, indices (-1:kmax+1)") )
-  print *, kmaxVarId
   call nc_check( nf90_def_var(ncid, "ktmax", NF90_INT, ktmaxVarId) )
   call nc_check( nf90_put_att(ncid, ktmaxVarId, "long_name", "z dim size total is ktmax+3, indices (-1:ktmax+1)") )
-  print *, kmaxVarId
   call nc_check( nf90_def_var(ncid, "lmax", NF90_INT, lmaxVarId) )
   call nc_check( nf90_put_att(ncid, lmaxVarId, "long_name", "phi dim size is lmax+3, indices (-1:lmax+1)") )
-  print *, lmaxVarId
   call nc_check( nf90_def_var(ncid, "iter", NF90_INT, iterVarId) )
   call nc_check( nf90_put_att(ncid, iterVarId, "long_name", "iteration number") )
-  print *, iterVarId
 
   !! note that fortran arrays are stored in column-major order
   !
   ! 3D arrays
-  call nc_check( nf90_def_var(ncid, "rho", NF90_FLOAT, [phiDimId, zDimId, rDimId], rhoVarId) )
+  call nc_check( nf90_def_var(ncid, "rho", NF90_FLOAT, [rDimId, zDimId, phiDimId], rhoVarId) )
   call nc_check( nf90_put_att(ncid, rhoVarId, "long_name", "density distribution") )
   call nc_check( nf90_put_att(ncid, rhoVarId, "units", "g/cm^3?") )
-  print *, rhoVarId
   ! 2D arrays
-  call nc_check( nf90_def_var(ncid, "rho_mode", NF90_FLOAT, [zDimId, rDimId], rhoModeVarId) )
+  call nc_check( nf90_def_var(ncid, "rho_mode", NF90_FLOAT, [rDimId, zDimId], rhoModeVarId) )
   call nc_check( nf90_put_att(ncid, rhoModeVarId, "long_name", "transformed density distribution") )
-  print *, rhoModeVarId
-  call nc_check( nf90_def_var(ncid, "resid", NF90_FLOAT, [zDimId, rDimId], residVarId) )
+  call nc_check( nf90_def_var(ncid, "resid", NF90_FLOAT, [rDimId, zDimId], residVarId) )
   call nc_check( nf90_put_att(ncid, residVarId, "long_name", "relaxation residual") )
-  print *, residVarId
 
   ! finished creating metadata
   call nc_check( nf90_enddef(ncid) )
@@ -251,17 +283,7 @@ subroutine initFileNetCDF(id, jmax, kmax, ktmax, lmax)
   call nc_check( nf90_put_var(ncid, kmaxVarId,  kmax) )
   call nc_check( nf90_put_var(ncid, lmaxVarId,  lmax) )
   call nc_check( nf90_put_var(ncid, ktmaxVarId, ktmax) )
-  call nc_check( nf90_put_var(ncid, iterVarId, 13) )
-  !call nc_check( nf90_put_var(ncid, varid, A) )
-
-  call nc_check( nf90_get_var(ncid, jmaxVarId, scalar) )
-  print *, "jmax", scalar
-  call nc_check( nf90_get_var(ncid, kmaxVarId, scalar) )
-  print *, "kmax", scalar
-  call nc_check( nf90_get_var(ncid, lmaxVarId, scalar) )
-  print *, "lmax", scalar
-  call nc_check( nf90_get_var(ncid, iterVarId, scalar) )
-  print *, "iter", scalar
+  call nc_check( nf90_put_var(ncid, iterVarId,  id) )
 
   ! close the file
   call nc_check( nf90_close(ncid) )
