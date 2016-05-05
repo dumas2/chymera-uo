@@ -32,7 +32,7 @@ LIBS = -L$(NETCDF_ROOT)/lib -lnetcdff
 
 #------------------------------------------------------------------
 
-all: poisson_solver
+all: poisson_relax poisson_solver
 
 poisson_solver: $(OBJS) poisson_solver.o
 	$(FC) -o poisson_solver poisson_solver.o $(OBJS) $(LIBS)
