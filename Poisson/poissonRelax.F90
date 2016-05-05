@@ -78,7 +78,7 @@ call readDensity(rho,Nj,Nk)
 
 call writeDataNetCDF(rho, 1, Nj, Nk, Ntk, Nl)
 
-call initFileNetCDF(1, Nj, Nk, Ntk, Nl)
+print *, "FINISHED writing, temporary halting spot"
 call MPI_Finalize
 STOP 0
 
