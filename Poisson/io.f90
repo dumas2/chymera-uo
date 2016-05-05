@@ -198,12 +198,12 @@ subroutine writeDataNetCDF(rhoMode, id, jmax, kmax, ktmax, lmax)
     call nc_check( nf90_open(trim(filename), NF90_WRITE, ncid) )
 
     ! write lower (in z) boundary values plus interior of rank 0
-    call nc_check( nf90_put_var(ncid, rhoModeVarId, rhoMode(:,-1:kmax-1)) )
+    call nc_check( nf90_put_var(ncid, rhoModeVarId, rhoMode(:,-1:kmax-1), start=[1,1]) )
 
     ! recv data from other ranks and write it to the netCDF file
     do nr = 1, numRanks-1
       call MPI_Recv(buf, bufSize, MPI_DOUBLE_PRECISION, nr, tag, MPI_COMM_WORLD, status)
-      call nc_check( nf90_put_var(ncid, rhoModeVarId, buf) )
+      call nc_check( nf90_put_var(ncid, rhoModeVarId, buf, start=[1,nr*(kmax+2)]) )
     end do
 
     ! top two boundary layers in z (kmax:kmax+1) obtained from last rank
@@ -211,7 +211,7 @@ subroutine writeDataNetCDF(rhoMode, id, jmax, kmax, ktmax, lmax)
       call MPI_Recv(buf, 2*(jmax+3), MPI_DOUBLE_PRECISION, numRanks-1, tag, MPI_COMM_WORLD, status)
       call nc_check( nf90_put_var(ncid, rhoModeVarId, buf(:,1:2)) )
     else
-      call nc_check( nf90_put_var(ncid, rhoModeVarId, rhoMode(:,kmax:kmax+1)) )
+      call nc_check( nf90_put_var(ncid, rhoModeVarId, rhoMode(:,kmax:kmax+1), start=[1,ktmax+2]) )
     end if
 
     ! close the file
