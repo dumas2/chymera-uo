@@ -62,8 +62,8 @@ dz = 0.09316442463639991
 m = 1
 
 ! Allocate arrays
-Allocate(V1h(-1:Nj+1,-1:Nk+1),   Tmp(-1:Nj+1,-1:Nk+1))
-Allocate(rho(-1:Nj+1,-1:Nk+1), Resid(-1:Nj+1,-1:Nk+1))
+allocate(V1h(-1:Nj+1,-1:Nk+1),   Tmp(-1:Nj+1,-1:Nk+1))
+allocate(rho(-1:Nj+1,-1:Nk+1), Resid(-1:Nj+1,-1:Nk+1))
 
 !! Initialize
 V1h =  0.0
@@ -78,7 +78,7 @@ call readDensity(rho,Nj,Nk)
 
 call writeDataNetCDF(rho, 1, Nj, Nk, Ntk, Nl)
 
-print *, "FINISHED writing, temporary halting spot"
+print *, rank, ": FINISHED writing, temporary halting spot in main need to test relaxation"
 call MPI_Finalize
 STOP 0
 
