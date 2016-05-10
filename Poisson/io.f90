@@ -79,7 +79,7 @@ buf = 0.0
 if (rank == 0) then
   open(unit=fd, file="density.dat", FORM="FORMATTED")
 
-  buf(:,    -1) = 0.0    ! extra boundaries only needed in neighbor below
+  buf(:,-1) = 0.0    ! extra boundaries only needed in neighbor below
 
   ! read in data for rank 0
   do iz = 0, kmax
@@ -87,7 +87,7 @@ if (rank == 0) then
       read(fd,fmt) jj, kk, buf(ir,iz)
     end do
   end do
-  if (0 /= numRanks-1) then   ! extra boundary cells (kmax+1) extends into neighbor above
+  if (numRanks > 1) then   ! extra boundary cells (kmax+1) extends into neighbor above
     do ir = 0, jmax
       read(fd,fmt) jj, kk, buf(ir,kmax+1)
     end do
@@ -165,7 +165,7 @@ subroutine writeDataNetCDF(rhoMode, id, jmax, kmax, ktmax, lmax)
   ! Writes array as a netCDF file
   use netcdf
   use MPI_F08, only : MPI_Comm_rank, MPI_Comm_size, MPI_COMM_WORLD
-  use MPI_F08, only : MPI_Status, MPI_DOUBLE_PRECISION
+  use MPI_F08, only : MPI_Send, MPI_Recv, MPI_DOUBLE_PRECISION, MPI_Status
   implicit none
   integer, intent(in) :: id, jmax, kmax, ktmax, lmax
   real, intent(in)    :: rhoMode(-1:,-1:)
@@ -183,13 +183,15 @@ subroutine writeDataNetCDF(rhoMode, id, jmax, kmax, ktmax, lmax)
   call MPI_Comm_size(MPI_COMM_WORLD, numRanks)
   call MPI_Comm_rank(MPI_COMM_WORLD, rank)
 
+  tag = 13
+  bufSize = (jmax+3)*kmax             ! everyone sends k=1:kmax
+
   !! Rank 0 should recv data from cohorts and then write it
   !    - z dimension is broken into numRanks partitions
   !
   if (rank == 0) then
-     ! allocate memory for just the interior in z
-     bufSize = (jmax+3)*(kmax-1)
-     allocate(buf(-1:jmax+1,1:kmax-1))
+     ! allocate memory for the interior (plus upper shared boundary) in z
+     allocate(buf(-1:jmax+1,1:kmax))
 
     ! initialize netCDF metadata
     call initFileNetCDF(id, jmax, kmax, ktmax, lmax)
@@ -198,21 +200,18 @@ subroutine writeDataNetCDF(rhoMode, id, jmax, kmax, ktmax, lmax)
     call nc_check( nf90_open(trim(filename), NF90_WRITE, ncid) )
 
     ! write lower (in z) boundary values plus interior of rank 0
-    call nc_check( nf90_put_var(ncid, rhoModeVarId, rhoMode(:,-1:kmax-1), start=[1,1]) )
+    call nc_check( nf90_put_var(ncid, rhoModeVarId, rhoMode(:,-1:kmax), start=[1,1]) )
 
     ! recv data from other ranks and write it to the netCDF file
     do nr = 1, numRanks-1
       call MPI_Recv(buf, bufSize, MPI_DOUBLE_PRECISION, nr, tag, MPI_COMM_WORLD, status)
-      call nc_check( nf90_put_var(ncid, rhoModeVarId, buf, start=[1,nr*(kmax+2)]) )
+      call nc_check( nf90_put_var(ncid, rhoModeVarId, buf, start=[1,1+nr*(kmax+2)]) )
     end do
 
-    ! top two boundary layers in z (kmax:kmax+1) obtained from last rank
-    if (numRanks > 1) then
-      call MPI_Recv(buf, 2*(jmax+3), MPI_DOUBLE_PRECISION, numRanks-1, tag, MPI_COMM_WORLD, status)
-      call nc_check( nf90_put_var(ncid, rhoModeVarId, buf(:,1:2)) )
-    else
-      call nc_check( nf90_put_var(ncid, rhoModeVarId, rhoMode(:,kmax:kmax+1), start=[1,ktmax+2]) )
-    end if
+    ! top boundary layer (ktmax+1) is zero (unused)
+
+    buf(:,1) = 0.0d0
+    call nc_check( nf90_put_var(ncid, rhoModeVarId, buf(:,1), start=[1,ktmax+3]) )
 
     ! close the file
     call nc_check( nf90_close(ncid) )
@@ -220,15 +219,13 @@ subroutine writeDataNetCDF(rhoMode, id, jmax, kmax, ktmax, lmax)
 
   else
 
-    ! send data from interior (in z) to rank 0 (-1:jmax+1,1:kmax-1)
+    ! send data from interior plus upper shared boundary (in z) to rank 0 (-1:jmax+1,1:kmax)
     call MPI_Send(rhoMode(-1,1), bufSize, MPI_DOUBLE_PRECISION, 0, tag, MPI_COMM_WORLD)
-    if (rank == numRanks-1) then ! send top two boundary layers in z (kmax:kmax+1)
-      call MPI_Send(rhoMode(-1,kmax), 2*(jmax+3), MPI_DOUBLE_PRECISION, 0, tag, MPI_COMM_WORLD)
-    end if
 
   end if
 
 end subroutine writeDataNetCDF
+
 
 subroutine initFileNetCDF(id, jmax, kmax, ktmax, lmax)
   use netcdf
