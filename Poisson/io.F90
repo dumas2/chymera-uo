@@ -1,3 +1,5 @@
+#undef USE_NETCDF
+
 module io
 
   ! dimension ids
@@ -161,6 +163,7 @@ close(fd)
 
 end subroutine writeData
 
+#ifdef USE_NETCDF
 subroutine writeDataNetCDF(rhoMode, id, jmax, kmax, ktmax, lmax)
   ! Writes array as a netCDF file
   use netcdf
@@ -299,5 +302,8 @@ subroutine nc_check(status)
      STOP 1
   end if
 end subroutine nc_check
+
+! end USE_NETCDF
+#endif
 
 end module io
