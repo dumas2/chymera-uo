@@ -1,3 +1,5 @@
+#undef USE_NETCDF
+
 Program PoissonRelax
 !=============================================================================
 ! Name        : poissonRelax.F90
@@ -9,7 +11,10 @@ Program PoissonRelax
 !   Iterative (over)relaxation. 
 !==============================================================================
 use MultiGrid, only : Relax, Residual,RelaxB
-use io       , only : readDensity, writeData, initFileNetCDF, writeDataNetCDF
+use io       , only : readDensity, writeData
+#ifdef USE_NETCDF
+use io       , only : initFileNetCDF, writeDataNetCDF
+#endif
 use MPI_F08  , only : MPI_Init, MPI_Finalize
 use MPI_F08  , only : MPI_Comm_rank, MPI_Comm_size, MPI_COMM_WORLD
 implicit none
@@ -76,11 +81,9 @@ call readDensity(rho,Nj,Nk)
 !! CHANGE THIS so that we start on the coursest mesh, and go up!!!
 !call writeData(1,Nj,Nk,V1h, numrlx // ".000")
 
+#ifdef USE_NETCDF
 call writeDataNetCDF(rho, 1, Nj, Nk, Ntk, Nl)
-
-print *, rank, ": FINISHED writing, temporary halting spot in main need to test relaxation"
-call MPI_Finalize
-STOP 0
+#endif
 
 errmax = 1e6
 mn = 0
@@ -149,7 +152,7 @@ end do
  if(mod(mn,diag)==0)then
    write(iter,"(i6.6)") mn
    call writeData(0,Nj,Nk,V1h, "sol." // iter )
-   print *, "Wrote to file at iteration " // iter // "."
+   print *, "Wrote to file at iteration " // iter // ",", maxval(abs(Resid))
 
   call writeData(-1,Nj, Nk, Resid, "resid." // iter ) 
  end if
