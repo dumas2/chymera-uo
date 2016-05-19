@@ -19,18 +19,18 @@ use MPI_F08  , only : MPI_Init, MPI_Finalize
 use MPI_F08  , only : MPI_Comm_rank, MPI_Comm_size, MPI_COMM_WORLD
 implicit none
 
-real   , parameter :: tol  =  1e-4
+real   , parameter :: tol  =  1e-5
 
 integer, parameter :: Nj   =  256     ! number of r interior elements
-integer, parameter :: NTk  =   64     ! number of z interior elements total
+integer, parameter :: NTk  =  128     ! number of z interior elements total
 integer, parameter :: Nl   =    1     ! number of phi interior elements
 integer            :: Nk              ! number of z interior elements per rank in z
 
 integer   :: i,m,k,mn,ir,iz,p,je,ke
 integer   :: rank, numRanks
 integer   :: nsteps = 1000
-integer   :: msteps = 300
-integer   :: diag = 500  
+integer   :: msteps = 2000
+integer   :: diag = 500
 
 real, allocatable :: V1h(:,:), Tmp(:,:)
 real, allocatable :: rho(:,:),Resid(:,:)
@@ -44,7 +44,6 @@ call MPI_Init()
 
 call MPI_Comm_size(MPI_COMM_WORLD, numRanks)
 call MPI_Comm_rank(MPI_COMM_WORLD, rank)
-
 ! Calculate the number of z elements Nk for each rank (should be evenly distributed)
 Nk = NTk/numRanks
 if (numRanks*Nk /= NTk) then
@@ -79,7 +78,7 @@ resid= 0.0
 call readDensity(rho,Nj,Nk)
 
 !! CHANGE THIS so that we start on the coursest mesh, and go up!!!
-!call writeData(1,Nj,Nk,V1h, numrlx // ".000")
+!call writeData(-1,Nj+1,Nk+1,rho, "rhoInit")
 
 #ifdef USE_NETCDF
 call writeDataNetCDF(rho, 1, Nj, Nk, Ntk, Nl)
@@ -91,9 +90,7 @@ mn = 0
 do while(errmax.gt.tol)
 !... Relax solution on 1h mesh
 
-!print *, "mn= ",mn
 !    -------------------------
-! do i = 1, nsteps
 mn = mn + 1
 !!! Update boundary before relaxing.
 !! Top boundary, calculated directly before call to potential solve
@@ -106,46 +103,18 @@ mn = mn + 1
 ! Left boundary uses symmetry, right boundary is calculated directly.
   do iz = 1,Nk-1
     V1h(Nj,iz) = rho(Nj,iz)
- !   V1h(0 ,iz) = -V1h(1,iz)  ! Left boundary actually not required for relaxation.
+   V1h(0 ,iz) = -V1h(1,iz)  ! Left boundary actually not required for relaxation.
   end do
 ! Dirichlet boundary conditions in the midplane.
 do ir = 1,Nj-1
    V1h(ir,0) = V1h(ir,1) 
 end do
- 
+write(iter,"(i6.6)") mn
 
 ! Relax on V1h using rho as source
   call RelaxB(Nj, Nk, m, V1h, Tmp, rho, dr, dz)
 
-! end do
-
-!! Call residual
-! do i = 1, nsteps
-!mn=mn+1
-!!! Update boundary before relaxing.
-!! Top boundary, calculated directly before call to potential solve
-!  do ir = 1,Nj-1
-!    V1h(ir,Nk) = rho(ir,Nk)
- !   V1h(ir,1) = rho(ir,0)
-!  end do
-
-!! Left and right boundary.
-! Left boundary uses symmetry, right boundary is calculated directly.
-!  do iz = 1,Nk-1
-!    V1h(Nj,iz) = rho(Nj,iz)
- !   V1h(0 ,iz) = -V1h(1,iz)  ! Left boundary actually not required for relaxation.
-!  end do
-! Dirichlet boundary conditions in the midplane.
-!do ir = 1,Nj-1
-!   V1h(ir,0) = V1h(ir,1) 
-!end do
- 
-
-! Relax on V1h using rho as source
-! call RelaxB(Nj, Nk, m, V1h, Tmp, rho, dr, dz)
-
-!end do
-
+! Calculate residual. Max value is current error. 
 
  call Residual(Nj, Nk, m, V1h, Resid, rho, dr, dz)
 
