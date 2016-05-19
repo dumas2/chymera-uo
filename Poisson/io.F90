@@ -58,7 +58,7 @@ use MPI_F08, only : MPI_Comm_rank, MPI_Comm_size, MPI_COMM_WORLD
 use MPI_F08, only : MPI_Send, MPI_Recv, MPI_DOUBLE_PRECISION, MPI_Status
 implicit none
 integer, intent(in)  :: jmax,kmax
-real   , intent(out) :: A(-1:jmax+1,-1:kmax+1) ! dimensions for multigrid, odd interior pts, 2 halo cells
+real   , intent(inout) :: A(-1:jmax+1,-1:kmax+1) ! dimensions for multigrid, odd interior pts, 2 halo cells
 real   , allocatable :: buf(:,:)
 integer, parameter   :: fd=13
 integer              :: ir,iz,jj,kk,nr
@@ -115,7 +115,7 @@ if (rank == 0) then
         read(fd,fmt) jj, kk, buf(ir,kmax+1)
       end do
     else
-      buf(kmax+1,:) = 0.0     ! extra boundaries only needed in neighbor above
+      buf(:,kmax+1) = 0.0     ! extra boundaries only needed in neighbor above
     end if
     call MPI_Send(buf, bufSize, MPI_DOUBLE_PRECISION, nr, tag, MPI_COMM_WORLD)
     buf(:,-1) = buf(:,kmax-1)  ! lower bc for neigbor copied from last interior cell of previous
@@ -136,13 +136,12 @@ deallocate(buf)
 
 end subroutine readDensity
 
-
 subroutine writeData(b,J,K,A,id)
 ! Writes array as text to file for pretty plotting.
 implicit none
 
 integer, intent(in)               :: J,K,b
-real                              :: A(:,:)
+real, intent(in)                  :: A(-1:J+1,-1:K+1)
 integer                           :: i,l,fd
 character(len=*), parameter       :: fmt = "(i3,1x,i3,1x,1e22.10)"
 character(len=*), intent(in)      :: id
