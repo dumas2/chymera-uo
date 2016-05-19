@@ -104,9 +104,9 @@ Subroutine Relax(Nj, Nk, m, A, Tmp, rho, dr, dz)
 !
    Implicit None
    Integer, intent(in   ) :: Nj, Nk, m
-   Real,    intent(inout) :: A(0:Nj+1,0:Nk+1)
+   Real,    intent(inout) :: A(-1:Nj+1,-1:Nk+1)
    Real,    intent(inout) :: Tmp(-1:Nj+1,-1:Nk+1)
-   Real,    intent(in)    :: rho(0:Nj+1,0:Nk+1),dr,dz
+   Real,    intent(in)    :: rho(-1:Nj+1,-1:Nk+1),dr,dz
    Real                   :: r_var(-1:Nj+1)
    Real                   :: pi,dtheta,m1,w
    Integer                :: ir,jk,i
@@ -144,9 +144,9 @@ Subroutine RelaxB(Nj, Nk, m, A, Tmp, rho, dr, dz)
 !
    Implicit None
    Integer, intent(in   ) :: Nj, Nk, m
-   Real,    intent(inout) :: A(0:Nj+1,0:Nk+1)
+   Real,    intent(inout) :: A(-1:Nj+1,-1:Nk+1)
    Real,    intent(inout) :: Tmp(-1:Nj+1,-1:Nk+1)
-   Real,    intent(in)    :: rho(0:Nj,0:Nk),dr,dz
+   Real,    intent(in)    :: rho(-1:Nj+1,-1:Nk+1),dr,dz
    Real                   :: r_var(-1:Nj+1)
    Real                   :: pi,dtheta,m1,w
    Integer                :: ir,jk,i
@@ -154,7 +154,7 @@ Subroutine RelaxB(Nj, Nk, m, A, Tmp, rho, dr, dz)
    pi=acos(-1.0)
    dtheta=2.*pi/256.
    
-   w = 5.0/3.0
+   w = 11.0/6.0
    m1 = (cos((m-1)*dtheta)-1.)/dtheta/dtheta
    do i = 1,Nj
      r_var(i) = (float(i)-0.5)*dr
@@ -186,15 +186,14 @@ Subroutine Residual(Nj, Nk, m, A, Resid, rho, dr, dz)
 !
    Implicit None
    Integer, intent(in   ) :: Nj, Nk, m
-   Real,    intent(inout) :: A(0:Nj+1,0:Nk+1)
+   Real,    intent(inout) :: A(-1:Nj+1,-1:Nk+1)
    Real,    intent(inout) :: Resid(-1:Nj+1,-1:Nk+1)
-   Real,    intent(in)    :: rho(0:Nj,0:Nk),dr,dz
+   Real,    intent(in)    :: rho(-1:Nj+1,-1:Nk+1),dr,dz
    Real                   :: r_var(-1:Nj+1)
    Real                   :: pi,w,m1,dtheta
    Integer                :: ir,jk,i
 
 
-   w = 1.0
    pi=acos(-1.0)
    dtheta = 2.0*pi/256.
    m1 = (cos((m-1)*dtheta)-1.)/dtheta/dtheta
@@ -203,7 +202,7 @@ Subroutine Residual(Nj, Nk, m, A, Resid, rho, dr, dz)
    end do
 
 !! Calculate the residual 
-   do jk = 1, Nk-1
+   do jk = 2, Nk-1
      do ir = 2, Nj-1
       Resid(ir,jk) =    (                                               &
                  (1.0/dr/dr-1.0/2.0/r_var(ir)/dr)*A(ir-1,jk)                &
@@ -214,7 +213,7 @@ Subroutine Residual(Nj, Nk, m, A, Resid, rho, dr, dz)
               -  rho(ir,jk)    )
      end do
    end do
-  do ir = 1,Nj-1
+  do ir = 0,Nj
   Resid(ir,0) = 0.0
   end do
  
