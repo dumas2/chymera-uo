@@ -35,7 +35,7 @@ Subroutine Prolongate(J, K, V1h, V2h)
 !  Interpolation (prolongation) operator R^(J/2+1,K/2+1) => R^(J+1,K+1)
 !
 !  J-1 is the number of interior fine grid cells in radial direction
-!  K-1 is the number of interior fine grid cells in vertical direction
+
 !
   implicit none
   integer, intent(in) :: J, K
@@ -96,12 +96,54 @@ Subroutine Restrict(J, K, V1h, V2h)
 
 End Subroutine Restrict
 
+Subroutine RestrictRho(J, K, V1h, V2h)
+!
+!  Restriction operator R^(J+1,K+1) => R^(J/2+1,K/2+1)
+!
+!  J-1 is the number of interior fine grid cells in radial direction
+!  K-1 is the number of interior fine grid cells in vertical direction
+!
+  implicit none
+  integer, intent(in) :: J, K
+  real :: V1h(-1:J+1,-1:K+1), V2h(-1:J/2+1,-1:K/2+1)
+  integer :: ir, iz, jj, kk, m, n
+
+  m = J/2 - 1     ! # interior coarse cells in radial direction
+  n = K/2 - 1     ! # interior coarse cells in vertical direction
+
+  do iz = 0, n-1
+    kk = 2*iz
+    do ir = 0, m-1
+      jj = 2*ir
+
+      V2h(ir,iz) = .25*(.25*V1h(jj-1,kk+1) + .5*V1h(jj,kk+1) + .25*V1h(jj+1,kk+1)   &
+                      +  .5*V1h(jj-1,kk  ) +    V1h(jj,kk  ) +  .5*V1h(jj+1,kk  )   &
+                      + .25*V1h(jj-1,kk-1) + .5*V1h(jj,kk-1) + .25*V1h(jj+1,kk-1))
+    end do
+  end do
+
+  do iz=0,n
+     V2h(m,iz) = 1.0/12.0*(2.*V1h(2*m-1,2*iz) + 4.*V1h(2*m,2*iz) + 2.*v1h(2*m+1,2*iz) &
+            +      V1h(2*m-1,2*iz-1)  + 2.0*V1h(2*m,2*iz-1) + V1h(2*m+1,2*iz-1))
+     V2h(m+1,iz) = 0.25*(V1h(J,2*iz-1)+2.0*V1h(J,2*iz)+V1h(J,2*iz+1))
+  end do
+
+  do ir=0,m
+     V2h(ir,n  ) = 1.0/12.0*(    V1h(2*ir-1,2*n+1)  + 2.0*V1h(2*m,2*n+1)  &
+                          + 2.0*V1h(2*ir-1,2*n  )  + 4.0*V1h(2*m,2*n  )  &
+                          +     V1h(2*ir-1,2*n-1)  + 2.0*V1h(2*m,2*n-1) )
+     V2h(ir,n+1) = 0.25*(V1h(2*ir-1,K)+2.*V1h(2*ir,K)+V1h(2*ir+1,K))
+  end do
+     V2h(m+1,n+1) = V1h(J,K)
+End Subroutine RestrictRho
+
 Subroutine Relax(Nj, Nk, m, A, Tmp, rho, dr, dz)
 !
 ! Relax_2D on the interior and the two halo cells shared with the left and right neighbors
 !   - shared halo cells are computed twice and are not exchanged
 !   - the outside halo cells are from neighbors and cannot be not computed
 !
+use MPI_F08  , only : MPI_Comm_rank, MPI_Comm_size, MPI_COMM_WORLD
    Implicit None
    Integer, intent(in   ) :: Nj, Nk, m
    Real,    intent(inout) :: A(-1:Nj+1,-1:Nk+1)
@@ -109,61 +151,22 @@ Subroutine Relax(Nj, Nk, m, A, Tmp, rho, dr, dz)
    Real,    intent(in)    :: rho(-1:Nj+1,-1:Nk+1),dr,dz
    Real                   :: r_var(-1:Nj+1)
    Real                   :: pi,dtheta,m1,w
-   Integer                :: ir,jk,i
+   Integer                :: ir,jk,i,numRanks,rank,iz
+call MPI_Comm_size(MPI_COMM_WORLD, numRanks)
+call MPI_Comm_rank(MPI_COMM_WORLD, rank)
 
    pi=acos(-1.0)
    dtheta=2.*pi/256.
    
-   w = 5.0/3.0
+   w = 31.0/16.0
    m1 = (cos((m-1)*dtheta)-1.)/dtheta/dtheta
-   do i = 1,Nj
+   do i = 0,Nj+1
      r_var(i) = (float(i)-0.5)*dr
    end do
 
-
-   ! compute over extended region excluding boundary cells
-   do jk = 1, Nk-1
-     do ir = 1, Nj-1
-      A(ir,jk) =  (1.0-w)*A(ir,jk) + w*1.0/(2.0/dr/dr+2.0/dz/dz+m1/r_var(ir)/r_var(ir))*(                     &
-                 (1.0/dr/dr-1.0/2.0/r_var(ir)/dr)*A(ir-1,jk) &
-              +  (1.0/dr/dr+1.0/2.0/r_var(ir)/dr)*A(ir+1,jk) &
-              +  1.0/dz/dz                     *A(ir,jk+1) &
-              +  1.0/dz/dz                     *A(ir,jk-1) &
-              -  rho(ir,jk)    )
-     end do
-   end do
-
-
-End Subroutine Relax
-
-Subroutine RelaxB(Nj, Nk, m, A, Tmp, rho, dr, dz)
-!
-! Relax_2D on the interior and the two halo cells shared with the left and right neighbors
-!   - shared halo cells are computed twice and are not exchanged
-!   - the outside halo cells are from neighbors and cannot be not computed
-!
-   Implicit None
-   Integer, intent(in   ) :: Nj, Nk, m
-   Real,    intent(inout) :: A(-1:Nj+1,-1:Nk+1)
-   Real,    intent(inout) :: Tmp(-1:Nj+1,-1:Nk+1)
-   Real,    intent(in)    :: rho(-1:Nj+1,-1:Nk+1),dr,dz
-   Real                   :: r_var(-1:Nj+1)
-   Real                   :: pi,dtheta,m1,w
-   Integer                :: ir,jk,i
-
-   pi=acos(-1.0)
-   dtheta=2.*pi/256.
-   
-   w = 11.0/6.0
-   m1 = (cos((m-1)*dtheta)-1.)/dtheta/dtheta
-   do i = 1,Nj
-     r_var(i) = (float(i)-0.5)*dr
-   end do
-
-
-   ! compute over extended region excluding boundary cells
-
-   do jk = Nk-1,1,-1
+   ! compute over extended region including boundary cells
+if (rank==numRanks-1)then
+   do jk = Nk-1,0,-1
     do ir = Nj-1,1,-1
     A(ir,jk) =  (1.0-w)*A(ir,jk) + w*1.0/(2.0/dr/dr+2.0/dz/dz+m1/r_var(ir)/r_var(ir))*(                     &
                  (1.0/dr/dr-1.0/2.0/r_var(ir)/dr)*A(ir-1,jk) &
@@ -174,8 +177,51 @@ Subroutine RelaxB(Nj, Nk, m, A, Tmp, rho, dr, dz)
   
      end do
    end do
+else if (rank==0) then
+   do jk = Nk,1,-1
+    do ir = Nj-1,1,-1
+    A(ir,jk) =  (1.0-w)*A(ir,jk) + w*1.0/(2.0/dr/dr+2.0/dz/dz+m1/r_var(ir)/r_var(ir))*(                     &
+                 (1.0/dr/dr-1.0/2.0/r_var(ir)/dr)*A(ir-1,jk) &
+              +  (1.0/dr/dr+1.0/2.0/r_var(ir)/dr)*A(ir+1,jk) &
+              +  1.0/dz/dz                     *A(ir,jk+1) &
+              +  1.0/dz/dz                     *A(ir,jk-1) &
+              -  rho(ir,jk)    )
+       end do
+   end do
+else
+   do jk = Nk,0,-1
+    do ir = Nj-1,1,-1
+    A(ir,jk) =  (1.0-w)*A(ir,jk) + w*1.0/(2.0/dr/dr+2.0/dz/dz+m1/r_var(ir)/r_var(ir))*(                     &
+                 (1.0/dr/dr-1.0/2.0/r_var(ir)/dr)*A(ir-1,jk) &
+              +  (1.0/dr/dr+1.0/2.0/r_var(ir)/dr)*A(ir+1,jk) &
+              +  1.0/dz/dz                     *A(ir,jk+1) &
+              +  1.0/dz/dz                     *A(ir,jk-1) &
+              -  rho(ir,jk)    )
+       end do
+   end do
+end if
+!!! Update boundary before relaxing.
+!! Top boundary, calculated directly before call to potential solve
+if (rank==numRanks-1)then
+  do ir = 0,Nj
+    A(ir,Nk) = rho(ir,Nk)
+ !   A(ir,1) = rho(ir,0)
+  end do
+end if
+!! Left and right boundary.
+! Left boundary uses symmetry, right boundary is calculated directly.
+  do iz = 0,Nk
+    A(Nj,iz) = rho(Nj,iz)
+!    A(0 ,iz) = -A(1,iz)  ! Left boundary actually not required for relaxation.
+  end do
+! Dirichlet boundary conditions in the midplane.
+if (rank == 0)then
+  do ir = 0,Nj
+    A(ir,0) = A(ir,1) 
+  end do
+end if
 
-End Subroutine RelaxB
+End Subroutine Relax
 
 
 Subroutine Residual(Nj, Nk, m, A, Resid, rho, dr, dz)
@@ -184,6 +230,7 @@ Subroutine Residual(Nj, Nk, m, A, Resid, rho, dr, dz)
 !   - shared halo cells are computed twice and are not exchanged
 !   - the outside halo cells are from neighbors and cannot be not computed
 !
+use MPI_F08  , only : MPI_Comm_rank, MPI_Comm_size, MPI_COMM_WORLD
    Implicit None
    Integer, intent(in   ) :: Nj, Nk, m
    Real,    intent(inout) :: A(-1:Nj+1,-1:Nk+1)
@@ -191,7 +238,9 @@ Subroutine Residual(Nj, Nk, m, A, Resid, rho, dr, dz)
    Real,    intent(in)    :: rho(-1:Nj+1,-1:Nk+1),dr,dz
    Real                   :: r_var(-1:Nj+1)
    Real                   :: pi,w,m1,dtheta
-   Integer                :: ir,jk,i
+   Integer                :: ir,jk,i,numRanks,rank
+call MPI_Comm_size(MPI_COMM_WORLD, numRanks)
+call MPI_Comm_rank(MPI_COMM_WORLD, rank)
 
 
    pi=acos(-1.0)
@@ -200,10 +249,10 @@ Subroutine Residual(Nj, Nk, m, A, Resid, rho, dr, dz)
    do i = 0,Nj
      r_var(i) = (float(i)-0.5)*dr
    end do
-
+if (rank==numRanks-1) then
 !! Calculate the residual 
-   do jk = 2, Nk-1
-     do ir = 2, Nj-1
+   do jk = 1, Nk-1
+     do ir = 1, Nj-1
       Resid(ir,jk) =    (                                               &
                  (1.0/dr/dr-1.0/2.0/r_var(ir)/dr)*A(ir-1,jk)                &
               +  (1.0/dr/dr+1.0/2.0/r_var(ir)/dr)*A(ir+1,jk)                &
@@ -213,10 +262,21 @@ Subroutine Residual(Nj, Nk, m, A, Resid, rho, dr, dz)
               -  rho(ir,jk)    )
      end do
    end do
-  do ir = 0,Nj
-  Resid(ir,0) = 0.0
-  end do
- 
+else
+   do jk = 1, Nk
+     do ir = 1, Nj-1
+      Resid(ir,jk) =    (                                               &
+                 (1.0/dr/dr-1.0/2.0/r_var(ir)/dr)*A(ir-1,jk)                &
+              +  (1.0/dr/dr+1.0/2.0/r_var(ir)/dr)*A(ir+1,jk)                &
+              +  1.0/dz/dz                     *A(ir,jk+1)                &
+              +  1.0/dz/dz                     *A(ir,jk-1)                &
+              - (2.0/dr/dr+2.0/dz/dz+m1/r_var(ir)/r_var(ir))*A(ir,jk) &  
+              -  rho(ir,jk)    )
+     end do
+   end do
+
+
+end if
 End Subroutine Residual
 
 End Module MultiGrid
