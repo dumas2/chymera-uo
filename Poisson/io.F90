@@ -12,41 +12,6 @@ module io
 
 CONTAINS
 
-subroutine readBoundary(A,J,K)
-! Reads in the fourier transformed boundary data, calculated by boundary.F
-implicit none
-integer, intent(in)          :: J,K
-real   , intent(inout)       :: A(1:J,1:K)
-real                         ::  bndryValues(J+K-2)
-integer, parameter           :: fd=12
-character(len=*), parameter  :: fmt="(i3,1x,i3,1x,i3,1x,1e16.5)"
-character(len=*), parameter  :: fmt2="(i3,1x,i3,1x,1e16.5)"
-integer                      :: jj,kk,ll,i,imax
-imax=J+K-2
-
-!open file to read
-open(unit=fd, file="boundaryConditions.dat")
-
-! read in the data and assign it to array
-do i = 1,imax
-   read(fd,fmt)  jj,kk,ll,bndryValues(i)
-   A(jj-1,kk-1)   =  bndryValues(i)
-!   print *, jj, kk, jj-1, kk-1, A(jj-1,kk-1)
-end do
-!do i = 1,255
-!   read(57,fmt2)  jj,kk,bndryValues(i)
-!   A(jj,kk)   =  bndryValues(i)
-!   print *, jj, kk, jj-1, kk-1, A(jj-1,kk-1)
-!end do
-!do i = 1,63
-!   read(57,fmt2)  jj,kk,bndryValues(i)
-!   A(jj,kk)   =  bndryValues(i)
-!   print *, jj, kk, jj-1, kk-1, A(jj-1,kk-1)
-!end do
-close(fd)
-
-end subroutine readBoundary
-
 subroutine readDensity(A,jmax,kmax)
 ! Reads in the fourier transformed density for a given mode,
 ! as calculated by fft.F by a call in pot3.F
@@ -60,7 +25,7 @@ implicit none
 integer, intent(in)  :: jmax,kmax
 real   , intent(inout) :: A(-1:jmax+1,-1:kmax+1) ! dimensions for multigrid, odd interior pts, 2 halo cells
 real   , allocatable :: buf(:,:)
-integer, parameter   :: fd=13
+integer, parameter   :: fd=73
 integer              :: ir,iz,jj,kk,nr
 integer              :: rank, numRanks, bufSize, tag=11
 type(MPI_Status)     :: status
@@ -87,11 +52,13 @@ if (rank == 0) then
   do iz = 0, kmax
     do ir = 0, jmax
       read(fd,fmt) jj, kk, buf(ir,iz)
+      write(8,*) rank,ir, iz, buf(ir,iz)
     end do
   end do
   if (numRanks > 1) then   ! extra boundary cells (kmax+1) extends into neighbor above
     do ir = 0, jmax
       read(fd,fmt) jj, kk, buf(ir,kmax+1)
+      write(8,*) rank, ir,iz,buf(ir,kmax+1)
     end do
   else
       buf(:,kmax+1) = 0.0     ! extra boundary cells (kmax+1) not needed
@@ -108,11 +75,13 @@ if (rank == 0) then
     do iz = 2, kmax          ! halo and shared cell (iz=-1:0) already copied
       do ir = 0, jmax
         read(fd,fmt) jj, kk, buf(ir,iz)
+        write(10+nr,*) ir,iz,buf(ir,iz)
       end do
     end do
     if (nr /= numRanks-1) then
       do ir = 0, jmax
         read(fd,fmt) jj, kk, buf(ir,kmax+1)
+        write(10+nr,*) ir, kmax+1, buf(ir,kmax+1)
       end do
     else
       buf(:,kmax+1) = 0.0     ! extra boundaries only needed in neighbor above
@@ -129,6 +98,15 @@ else  ! receiving ranks (other than rank 0)
 
   call MPI_Recv(buf, bufSize, MPI_DOUBLE_PRECISION, 0, tag, MPI_COMM_WORLD, status)
   A(:,:) = buf(:,:)      ! copy entire array
+  ! write(20+rank,*) rank
+  ! do iz=-1,kmax+1
+     do ir = -1,jmax+1
+       write(20+rank,*) ir, kmax, A(ir,kmax)
+     end do
+     do iz = -1,kmax+1
+       write(20+rank,*) jmax, iz, A(jmax,iz)
+     end do
+  ! end do
 
 end if
 
@@ -137,28 +115,63 @@ deallocate(buf)
 end subroutine readDensity
 
 subroutine writeData(b,J,K,A,id)
-! Writes array as text to file for pretty plotting.
+! Writes array as text to file for easy plotting using gnuplot.
+use MPI_F08, only : MPI_Comm_rank, MPI_Comm_size, MPI_COMM_WORLD
+use MPI_F08, only : MPI_Send, MPI_Recv, MPI_DOUBLE_PRECISION, MPI_Status
 implicit none
-
 integer, intent(in)               :: J,K,b
 real, intent(in)                  :: A(-1:J+1,-1:K+1)
-integer                           :: i,l,fd
-character(len=*), parameter       :: fmt = "(i3,1x,i3,1x,1e22.10)"
 character(len=*), intent(in)      :: id
 
-fd = 14
-!open file for writing
-open(fd,file="out_" // id // ".txt")
+!local variables
+integer                           :: i,l,fd,tag
+integer                           :: bufSize,nr,rank,numRanks
+real, allocatable                 :: buf(:,:)
+character(len=*), parameter       :: fmt = "(i3,1x,i3,1x,1e22.10)"
+type(MPI_Status)                  :: status
 
-! write data to file
-do l = b,K
- do i = b,J
-    write(fd,fmt)  i, l, A(i,l)
- end do
-end do
+call MPI_Comm_size(MPI_COMM_WORLD, numRanks)
+call MPI_Comm_rank(MPI_COMM_WORLD, rank)
 
-! close file
-close(fd)
+tag = 13
+bufSize = (J+3)*K
+
+if (rank == 0) then
+ ! allocate memory for the interior (plus upper shared boundary) in z
+  allocate(buf(-1:J+1,1:K))
+
+  fd = 14
+ !open file for writing
+  open(fd,file="out_" // id // ".txt")
+ ! write lower (in z) boundary values plus interior of rank 0
+
+  do l = 1,K
+   do i = 1,J
+      write(fd,fmt)  i, l, A(i,l)
+   end do
+  end do
+ ! recv data from other ranks and write it to the file
+  do nr = 1, numRanks-1
+! print *, "rank0 is waiting for data from rank",nr
+    call MPI_Recv(buf, bufSize, MPI_DOUBLE_PRECISION, nr, tag, MPI_COMM_WORLD, status)
+! print *, "rank0 received data from rank",nr
+    do l = 1,K
+      do i = 1,J
+        write(fd,fmt)  i, K*nr+l, buf(i,l)
+      end do
+    end do
+ ! close file
+  end do
+  close(fd)
+  deallocate(buf)
+
+else 
+
+ ! send data from interior plus upper shared boundary (in z) to rank 0 (-1:jmax+1,1:kmax)
+!  print *, "rank", rank,"sending data to rank 0"
+  call MPI_Send(A(-1:J+1,1:K), bufSize, MPI_DOUBLE_PRECISION, 0, tag, MPI_COMM_WORLD)
+!  print *, "sent data from rank",rank,"to rank 0"
+end if
 
 end subroutine writeData
 
