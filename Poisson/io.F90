@@ -135,7 +135,7 @@ if (rank == 0) then
  ! write lower (in z) boundary values plus interior of rank 0
 
  do l = -1,K
-   do i = 0,J
+   do i = 1,J
      write(fd,fmt)  i, l, A(i,l)
    end do
  end do
