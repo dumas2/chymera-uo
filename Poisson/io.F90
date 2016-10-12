@@ -46,24 +46,23 @@ buf = 0.0
 if (rank == 0) then
   open(unit=fd, file="density.dat", FORM="FORMATTED")
 
-  buf(:,-1) = 0.0    ! extra boundaries only needed in neighbor below
+!  buf(:,-1) = 0.0    ! extra boundaries only needed in neighbor below
 
   ! read in data for rank 0
   do iz = 0, kmax
     do ir = 0, jmax
       read(fd,fmt) jj, kk, buf(ir,iz)
-      write(8,*) rank,ir, iz, buf(ir,iz)
     end do
   end do
   if (numRanks > 1) then   ! extra boundary cells (kmax+1) extends into neighbor above
     do ir = 0, jmax
       read(fd,fmt) jj, kk, buf(ir,kmax+1)
-      write(8,*) rank, ir,iz,buf(ir,kmax+1)
     end do
   else
       buf(:,kmax+1) = 0.0     ! extra boundary cells (kmax+1) not needed
   end if
-
+  
+  buf(:,-1) = buf(:,0)
   A(:,:) = buf(:,:)      ! copy entire array
 
   buf(:,-1) = buf(:,kmax-1)  ! lower bc for neigbor copied from last interior cell of previous
@@ -75,13 +74,11 @@ if (rank == 0) then
     do iz = 2, kmax          ! halo and shared cell (iz=-1:0) already copied
       do ir = 0, jmax
         read(fd,fmt) jj, kk, buf(ir,iz)
-        write(10+nr,*) ir,iz,buf(ir,iz)
       end do
     end do
     if (nr /= numRanks-1) then
       do ir = 0, jmax
         read(fd,fmt) jj, kk, buf(ir,kmax+1)
-        write(10+nr,*) ir, kmax+1, buf(ir,kmax+1)
       end do
     else
       buf(:,kmax+1) = 0.0     ! extra boundaries only needed in neighbor above
@@ -98,15 +95,6 @@ else  ! receiving ranks (other than rank 0)
 
   call MPI_Recv(buf, bufSize, MPI_DOUBLE_PRECISION, 0, tag, MPI_COMM_WORLD, status)
   A(:,:) = buf(:,:)      ! copy entire array
-  ! write(20+rank,*) rank
-  ! do iz=-1,kmax+1
-     do ir = -1,jmax+1
-       write(20+rank,*) ir, kmax, A(ir,kmax)
-     end do
-     do iz = -1,kmax+1
-       write(20+rank,*) jmax, iz, A(jmax,iz)
-     end do
-  ! end do
 
 end if
 
@@ -128,37 +116,36 @@ integer                           :: i,l,fd,tag
 integer                           :: bufSize,nr,rank,numRanks
 real, allocatable                 :: buf(:,:)
 character(len=*), parameter       :: fmt = "(i3,1x,i3,1x,1e22.10)"
+!character(len=*), parameter       :: fmt = "(7g8.3)"
 type(MPI_Status)                  :: status
 
 call MPI_Comm_size(MPI_COMM_WORLD, numRanks)
 call MPI_Comm_rank(MPI_COMM_WORLD, rank)
 
 tag = 13
-bufSize = (J+3)*K
+bufSize = (J+3)*(K+3)
 
 if (rank == 0) then
  ! allocate memory for the interior (plus upper shared boundary) in z
-  allocate(buf(-1:J+1,1:K))
+  allocate(buf(-1:J+1,-1:K+1))
 
   fd = 14
  !open file for writing
   open(fd,file="out_" // id // ".txt")
  ! write lower (in z) boundary values plus interior of rank 0
 
-  do l = 1,K
-   do i = 1,J
-      write(fd,fmt)  i, l, A(i,l)
+ do l = -1,K
+   do i = 0,J
+     write(fd,fmt)  i, l, A(i,l)
    end do
-  end do
+ end do
  ! recv data from other ranks and write it to the file
   do nr = 1, numRanks-1
-! print *, "rank0 is waiting for data from rank",nr
     call MPI_Recv(buf, bufSize, MPI_DOUBLE_PRECISION, nr, tag, MPI_COMM_WORLD, status)
-! print *, "rank0 received data from rank",nr
     do l = 1,K
-      do i = 1,J
-        write(fd,fmt)  i, K*nr+l, buf(i,l)
-      end do
+     do i = 1,J
+       write(fd,fmt)  i, K*nr+l, buf(i,l)
+     end do
     end do
  ! close file
   end do
@@ -168,9 +155,7 @@ if (rank == 0) then
 else 
 
  ! send data from interior plus upper shared boundary (in z) to rank 0 (-1:jmax+1,1:kmax)
-!  print *, "rank", rank,"sending data to rank 0"
-  call MPI_Send(A(-1:J+1,1:K), bufSize, MPI_DOUBLE_PRECISION, 0, tag, MPI_COMM_WORLD)
-!  print *, "sent data from rank",rank,"to rank 0"
+  call MPI_Send(A(-1:J+1,-1:K+1), bufSize, MPI_DOUBLE_PRECISION, 0, tag, MPI_COMM_WORLD)
 end if
 
 end subroutine writeData
