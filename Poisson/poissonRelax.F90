@@ -22,23 +22,23 @@ implicit none
 
 real   , parameter :: tol =  1e-5
 
-integer, parameter :: Nj  =  256     ! number of r interior elements
-integer, parameter :: NTk =  128     ! number of z interior elements total
-integer, parameter :: Nl  =    1     ! number of phi interior elements
-integer            :: Nk             ! number of z interior elements per rank in z
-integer, parameter :: m   =  1       ! consider m=1 Fourier mode for testing
+integer, parameter :: Nj  = 256    ! number of r interior elements
+integer, parameter :: NTk =  64    ! number of z interior elements total
+integer, parameter :: Nl  =  1     ! number of phi interior elements
+integer            :: Nk           ! number of z interior elements per rank in z
+integer, parameter :: m   =  1     ! consider m=1 Fourier mode for testing
 
 
 integer   :: i,k,mn,ir,iz,p,je,ke,j
-integer   :: rank, numRanks, nr
-integer   :: nsteps = 1000
-integer   :: msteps = 400
-integer   :: diag = 100
+integer   :: rank, numRanks, nr, loop,debug
+integer   :: nsteps = 10000
+integer   :: msteps = 4000
+integer   :: diag = 500
 
 real, allocatable :: V1h(:,:), Tmp(:,:)
 real, allocatable :: rho(:,:),Resid(:,:)
-real, parameter   :: dr = 0.09316442463639991
-real, parameter   :: dz = 0.09316442463639991
+ real, parameter   :: dr = 0.09316442489377
+ real, parameter   :: dz = 0.09316442489377
 
 real              :: w, errmax, buf, residTot(32)
 
@@ -46,12 +46,18 @@ character(len=6) :: iter
 character(len=6) :: numrlx
 
 type(MPI_Status) :: status
+
 ! Initialize MPI library
 call MPI_Init()
 
 call MPI_Comm_size(MPI_COMM_WORLD, numRanks)
 call MPI_Comm_rank(MPI_COMM_WORLD, rank)
+
 print *, "numRanks = ",numRanks
+loop=0
+do while (loop==1)
+end do
+
 ! Calculate the number of z elements Nk for each rank (should be evenly distributed)
 Nk = NTk/numRanks
 if (numRanks*Nk /= NTk) then
@@ -75,9 +81,10 @@ V1h =  0.0
 rho =  0.0
 resid= 0.0
 
+
 !! Read in source term and boundary data from file
 call readDensity(rho,Nj,Nk)
-!Exchange halow once to receive upper boundaries
+!Exchange halo once to receive upper boundaries of source term
 call ExchangeHalo(rank,Nj,Nk,rho)
 
 call writeData(-1,Nj,Nk,rho, "rhoInit")
@@ -94,8 +101,8 @@ do while(mn.lt.msteps)
 
 !    -------------------------
 mn = mn + 1
-!!! Update boundary before relaxing.
-!! Top boundary, calculated directly before call to potential solve
+!!Update boundary before relaxing.
+!Top boundary, calculated directly before call to potential solve
 if (rank==numRanks-1)then
   do ir = 0,Nj
     V1h(ir,Nk) = rho(ir,Nk)
@@ -103,9 +110,9 @@ if (rank==numRanks-1)then
 end if
 !! Left and right boundary.
 ! Left boundary uses symmetry, right boundary is calculated directly.
- do iz = 0,Nk
+ do iz = 1,Nk
    V1h(Nj,iz) = rho(Nj,iz)
-!   V1h(0 ,iz) = -V1h(1,iz)  ! Left boundary actually not required for relaxation.
+   !V1h(0 ,iz) = -V1h(1,iz)  ! Left boundary actually not required for relaxation.
  end do
 ! Dirichlet boundary conditions in the midplane.
 if (rank == 0)then
@@ -114,13 +121,14 @@ if (rank == 0)then
   end do
 end if
 
-do j = 1,5
-! Relax on V1h using rho as source
- call Relax(Nj, Nk, m, V1h, Tmp, rho, dr, dz)
- call ExchangeHalo(rank,Nj,Nk,V1h)
-! Calculate residual. Max value is current error. 
-end do
+do j = 1,1
+!Relax on V1h using rho as source
 
+ call ExchangeHalo(rank,Nj,Nk,V1h)
+
+ call Relax(Nj, Nk, m, V1h, Tmp, rho, dr, dz)
+end do
+! Calculate residual. Max value is current error.
 call Residual(Nj, Nk, m, V1h, Resid, rho, dr, dz)
 
  if(mod(mn,diag)==0)then
@@ -128,7 +136,7 @@ call Residual(Nj, Nk, m, V1h, Resid, rho, dr, dz)
    call writeData(0,Nj,Nk,V1h, "sol." // iter )
    print *, "Rank",rank,"Wrote to file at iteration " // iter // ",", maxval(abs(Resid))
 
-  call writeData(-1,Nj, Nk, Resid, "resid." // iter ) 
+  call writeData(0,Nj, Nk, Resid, "resid." // iter ) 
  end if
 
 if (rank ==0 ) then
@@ -150,11 +158,6 @@ end do ! While loop
 print *, "rank",rank," believes we are done!!!"
 ! Write results
 call writeData(1,Nj,Nk,V1h, "final" )
-    do iz=-1,Nk+1
-      do ir = -1,Nj+1
-        write(30+rank,*) ir, iz, V1h(ir,iz)
-      end do
-    end do
 deallocate(V1h,Tmp,rho,Resid)
 
 ! Shutdown MPI
@@ -178,7 +181,6 @@ use MPI_F08, only : MPI_Send, MPI_Recv, MPI_DOUBLE_PRECISION, MPI_Status
    real  , allocatable :: bufFromAbove(:),bufFromBelow(:)
 
 Call MPI_Comm_size( MPI_COMM_WORLD, numRanks)
-!Call MPI_Comm_rank( MPI_COMM_WORLD, rank)
 
    allocate(bufFromAbove(Nj+3),bufFromBelow(Nj+3))
    bufSize=NJ+3
@@ -187,53 +189,28 @@ Call MPI_Comm_size( MPI_COMM_WORLD, numRanks)
    below  = rank - 1
     
    !! MPI halo exchange for parallel version
-   !
+!Rank=0, bottom of grid, no below
 if (rank == 0) then
   Call MPI_Send(A(:,Nk-1), bufSize , MPI_DOUBLE_PRECISION, above, tag, MPI_COMM_WORLD)
-! print *, "rank",rank," sends to ",above
   Call MPI_Recv(bufFromAbove, bufSize, MPI_DOUBLE_PRECISION, above, tag, MPI_COMM_WORLD, status)
-! print *, "rank", rank,"receives from",above
   A(:,Nk+1) = bufFromAbove
-    ! write(30+rank,*) rank, above, below
-    ! do iz=-1,Nk+1
-    !   do ir = -1,Nj+1
-    !     write(30+rank,*) ir, iz, A(ir,iz)
-    !   end do
-    ! end do
+
+!Rank=numRanks-1, top of grid, no above
 else if (rank == numRanks-1) then
 
   Call MPI_Send(A(:,1), bufSize , MPI_DOUBLE_PRECISION, below, tag, MPI_COMM_WORLD)
-! print *, "rank",rank," sends to ",below
   Call MPI_Recv(bufFromBelow, bufSize, MPI_DOUBLE_PRECISION, below, tag, MPI_COMM_WORLD, status)
-! print *, "rank", rank,"receives from",below
   A(:,-1) = bufFromBelow
-    ! write(30+rank,*) rank, above, below
-    ! do iz=-1,Nk+1
-    !   do ir = -1,Nj+1
-    !     write(30+rank,*) ir, iz, A(ir,iz)
-    !   end do
-    ! end do
+!Middle of grid
 else
-
   Call MPI_Send(A(:,Nk-1), bufSize , MPI_DOUBLE_PRECISION, above, tag, MPI_COMM_WORLD)
-! print *, "rank",rank," sends to ",above
-  Call MPI_Recv(bufFromAbove, bufSize, MPI_DOUBLE_PRECISION, above, tag, MPI_COMM_WORLD, status)
-  A(:,Nk+1) = bufFromAbove
 
   Call MPI_Send(A(:,1), bufSize , MPI_DOUBLE_PRECISION, below, tag, MPI_COMM_WORLD)
-! print *, "rank",rank," sends to ",below
   Call MPI_Recv(bufFromBelow, bufSize, MPI_DOUBLE_PRECISION, below, tag, MPI_COMM_WORLD, status)
-! print *, "rank", rank,"receives from",below
-
-! print *, "rank", rank,"receives from",above
+  Call MPI_Recv(bufFromAbove, bufSize, MPI_DOUBLE_PRECISION, above, tag, MPI_COMM_WORLD, status)
+  A(:,Nk+1) = bufFromAbove
   A(:, -1) = bufFromBelow
 
-    ! write(30+rank,*) rank, above, below
-    ! do iz=-1,Nk+1
-    !   do ir = -1,Nj+1
-    !     write(30+rank,*) ir, iz, A(ir,iz)
-    !   end do
-    ! end do
 end if   
 
 deallocate(bufFromAbove,bufFromBelow)
