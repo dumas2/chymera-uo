@@ -212,10 +212,10 @@ C$OMP DO
         
         if(l.eq.1)then
         open(unit=59,file='boundaryConditions.dat',form='FORMATTED')
-         do j=2,jmax
+         do j=2,jmax+1
          write(59,"(i3,1x,i3,1x,1e16.5)") J,KMAX+1,PHI(J,KMAX+1,L)
          end do
-         do k=2,kmax
+         do k=2,kmax+1
           write(59,"(i3,1x,i3,1x,1e16.5)") JMAX+1,K,PHI(JMAX+1,K,L)
          end do
         close(59)
@@ -228,19 +228,21 @@ C     (remember, densities are in array phi right now.)
         ENDDO                                                           
        if(l.eq.1)then
        open(unit=53,file="density.dat", FORM="formatted")  
-        DO J=2,JMAX2
-            write(53,"(i3,1x,i3,1x,1e16.5)") J-1,1,PHI(J,1,L)
+        DO J=1,JMAX
+            write(53,"(i3,1x,i3,1x,1e16.5)") J,2,PIG4*PHI(J,2,L)
         END DO
+  
+        write(53,"(i3,1x,i3,1x,1e16.5)") jmax+1,2,PHI(JMAX+1,2,L)
 
         DO K=2,KMAX
           DO J=1,JMAX
-            write(53,"(i3,1x,i3,1x,1e16.5)") J-1,K-1,PIG4*PHI(J,K,L)
+            write(53,"(i3,1x,i3,1x,1e16.5)") J,K,PIG4*PHI(J,K,L)
           ENDDO
-            write(53,"(i3,1x,i3,1x,1e16.5)") jmax,K-1,PHI(JMAX+1,K,L)
+            write(53,"(i3,1x,i3,1x,1e16.5)") jmax+1,K,PHI(JMAX+1,K,L)
         ENDDO
 
          do j=1,jmax+1
-         write(53,"(i3,1x,i3,1x,1e16.5)") J-1,KMAX,PHI(J,KMAX+1,L)
+         write(53,"(i3,1x,i3,1x,1e16.5)") J,KMAX+1,PHI(J,KMAX+1,L)
          end do
         
        close(53)
@@ -268,7 +270,9 @@ C
         CALL BLKTRI(1,1,KMAX-1,AN,BN,CN,1,JMAX-1,
      &        AM,BM,CM,JMAX-1,Y,IERROR,WFW)         
 C     Solution on 2-D grid is complete.
+        
         if(L.EQ.1) then
+        print *, "write solution loop"
         open(unit=51,file='fourierMatrix.dat',form='formatted')
         DO K=2,KMAX
           DO J=2,JMAX
@@ -336,7 +340,7 @@ C$OMP DO
 C$OMP ENDDO
 
 C$OMP END PARALLEL
-
+      print *, "calling zaxphi"
       CALL ZAXPHI(NPOINT,IPRINT)
 
 
