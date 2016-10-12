@@ -156,9 +156,9 @@ call MPI_Comm_size(MPI_COMM_WORLD, numRanks)
 call MPI_Comm_rank(MPI_COMM_WORLD, rank)
 
    pi=acos(-1.0)
-   dtheta=2.*pi/256.
+   dtheta=2.*pi/128.
    
-   w = 31.0/16.0
+   w = 11.0/6.0
    m1 = (cos((m-1)*dtheta)-1.)/dtheta/dtheta
    do i = 0,Nj+1
      r_var(i) = (float(i)-0.5)*dr
@@ -174,7 +174,6 @@ if (rank==numRanks-1)then
               +  1.0/dz/dz                     *A(ir,jk+1) &
               +  1.0/dz/dz                     *A(ir,jk-1) &
               -  rho(ir,jk)    )
-  
      end do
    end do
 else if (rank==0) then
@@ -200,26 +199,6 @@ else
        end do
    end do
 end if
-!!! Update boundary before relaxing.
-!! Top boundary, calculated directly before call to potential solve
-if (rank==numRanks-1)then
-  do ir = 0,Nj
-    A(ir,Nk) = rho(ir,Nk)
- !   A(ir,1) = rho(ir,0)
-  end do
-end if
-!! Left and right boundary.
-! Left boundary uses symmetry, right boundary is calculated directly.
-  do iz = 0,Nk
-    A(Nj,iz) = rho(Nj,iz)
-!    A(0 ,iz) = -A(1,iz)  ! Left boundary actually not required for relaxation.
-  end do
-! Dirichlet boundary conditions in the midplane.
-if (rank == 0)then
-  do ir = 0,Nj
-    A(ir,0) = A(ir,1) 
-  end do
-end if
 
 End Subroutine Relax
 
@@ -244,33 +223,33 @@ call MPI_Comm_rank(MPI_COMM_WORLD, rank)
 
 
    pi=acos(-1.0)
-   dtheta = 2.0*pi/256.
+   dtheta = 2.0*pi/128
    m1 = (cos((m-1)*dtheta)-1.)/dtheta/dtheta
    do i = 0,Nj
      r_var(i) = (float(i)-0.5)*dr
    end do
 if (rank==numRanks-1) then
 !! Calculate the residual 
-   do jk = 1, Nk-1
+   do jk = 0, Nk-1
      do ir = 1, Nj-1
-      Resid(ir,jk) =    (                                               &
-                 (1.0/dr/dr-1.0/2.0/r_var(ir)/dr)*A(ir-1,jk)                &
-              +  (1.0/dr/dr+1.0/2.0/r_var(ir)/dr)*A(ir+1,jk)                &
+      Resid(ir,jk) =    (                                                 &
+                 (1.0/dr/dr-1.0/2.0/r_var(ir)/dr)*A(ir-1,jk)              &
+              +  (1.0/dr/dr+1.0/2.0/r_var(ir)/dr)*A(ir+1,jk)              &
               +  1.0/dz/dz                     *A(ir,jk+1)                &
               +  1.0/dz/dz                     *A(ir,jk-1)                &
-              - (2.0/dr/dr+2.0/dz/dz+m1/r_var(ir)/r_var(ir))*A(ir,jk) &  
+              - (2.0/dr/dr+2.0/dz/dz+m1/r_var(ir)/r_var(ir))*A(ir,jk)     &  
               -  rho(ir,jk)    )
      end do
    end do
 else
    do jk = 1, Nk
      do ir = 1, Nj-1
-      Resid(ir,jk) =    (                                               &
-                 (1.0/dr/dr-1.0/2.0/r_var(ir)/dr)*A(ir-1,jk)                &
-              +  (1.0/dr/dr+1.0/2.0/r_var(ir)/dr)*A(ir+1,jk)                &
+      Resid(ir,jk) =    (                                                 &
+                 (1.0/dr/dr-1.0/2.0/r_var(ir)/dr)*A(ir-1,jk)              &
+              +  (1.0/dr/dr+1.0/2.0/r_var(ir)/dr)*A(ir+1,jk)              &
               +  1.0/dz/dz                     *A(ir,jk+1)                &
               +  1.0/dz/dz                     *A(ir,jk-1)                &
-              - (2.0/dr/dr+2.0/dz/dz+m1/r_var(ir)/r_var(ir))*A(ir,jk) &  
+              - (2.0/dr/dr+2.0/dz/dz+m1/r_var(ir)/r_var(ir))*A(ir,jk)     &  
               -  rho(ir,jk)    )
      end do
    end do
