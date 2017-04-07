@@ -32,8 +32,9 @@ integer, parameter :: m   =  1     ! consider m=1 Fourier mode for testing
 integer   :: i,k,mn,ir,iz,p,je,ke,j
 integer   :: rank, numRanks, nr, loop,debug
 integer   :: nsteps = 10000
-integer   :: msteps = 4000
-integer   :: diag = 500
+
+integer   :: msteps = 10000
+integer   :: diag = 1000
 
 real, allocatable :: V1h(:,:), Tmp(:,:)
 real, allocatable :: rho(:,:),Resid(:,:)
@@ -53,10 +54,10 @@ call MPI_Init()
 call MPI_Comm_size(MPI_COMM_WORLD, numRanks)
 call MPI_Comm_rank(MPI_COMM_WORLD, rank)
 
-print *, "numRanks = ",numRanks
-loop=0
-do while (loop==1)
-end do
+!print *, "numRanks = ",numRanks
+!loop=0
+!do while (loop==1)
+!end do
 
 ! Calculate the number of z elements Nk for each rank (should be evenly distributed)
 Nk = NTk/numRanks
@@ -77,16 +78,16 @@ allocate(V1h(-1:Nj+1,-1:Nk+1),   Tmp(-1:Nj+1,-1:Nk+1))
 allocate(rho(-1:Nj+1,-1:Nk+1), Resid(-1:Nj+1,-1:Nk+1))
 
 !! Initialize
-V1h =  0.0
 rho =  0.0
 resid= 0.0
-
+V1h = 0.0
 
 !! Read in source term and boundary data from file
 call readDensity(rho,Nj,Nk)
 !Exchange halo once to receive upper boundaries of source term
+if (numRanks>1) then
 call ExchangeHalo(rank,Nj,Nk,rho)
-
+end if
 call writeData(-1,Nj,Nk,rho, "rhoInit")
 
 #ifdef USE_NETCDF
@@ -97,36 +98,37 @@ errmax = 1e6
 mn = 0
 do while(mn.lt.msteps)
 !do while(errmax.gt.tol)
-!... Relax solution on 1h mesh
 
 !    -------------------------
 mn = mn + 1
-!!Update boundary before relaxing.
+!Update boundary before relaxing.
+!! Dirichlet boundary conditions in the midplane.
+if (rank == 0)then
+  do ir = 0,Nj+1
+    V1h(ir, 0) = V1h(ir,1) 
+    V1h(ir,-1) = V1h(ir,2) 
+  end do
+end if
+
 !Top boundary, calculated directly before call to potential solve
 if (rank==numRanks-1)then
-  do ir = 0,Nj
+  do ir = 0,Nj+1
     V1h(ir,Nk) = rho(ir,Nk)
   end do
 end if
 !! Left and right boundary.
 ! Left boundary uses symmetry, right boundary is calculated directly.
- do iz = 1,Nk
+ do iz = 0,Nk
    V1h(Nj,iz) = rho(Nj,iz)
-   !V1h(0 ,iz) = -V1h(1,iz)  ! Left boundary actually not required for relaxation.
+   V1h(0 ,iz) = -V1h(1,iz)  ! Left boundary actually not required for relaxation.
  end do
-! Dirichlet boundary conditions in the midplane.
-if (rank == 0)then
-  do ir = 0,Nj
-    V1h(ir,0) = V1h(ir,1) 
-  end do
-end if
 
 do j = 1,1
 !Relax on V1h using rho as source
-
+if (numRanks>1) then
  call ExchangeHalo(rank,Nj,Nk,V1h)
-
- call Relax(Nj, Nk, m, V1h, Tmp, rho, dr, dz)
+end if
+call Relax(Nj, Nk, m, V1h, Tmp, rho, dr, dz)
 end do
 ! Calculate residual. Max value is current error.
 call Residual(Nj, Nk, m, V1h, Resid, rho, dr, dz)
