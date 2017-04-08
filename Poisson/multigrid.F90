@@ -158,25 +158,14 @@ call MPI_Comm_rank(MPI_COMM_WORLD, rank)
    pi=acos(-1.0)
    dtheta=2.*pi/128.
    
-   w = 11.0/6.0
+   w = 1.0d0
    m1 = (cos((m-1)*dtheta)-1.)/dtheta/dtheta
    do i = 0,Nj+1
      r_var(i) = (float(i)-0.5)*dr
    end do
 
-   ! compute over extended region including boundary cells
-if (rank==numRanks-1)then
-   do jk = Nk-1,0,-1
-    do ir = Nj-1,1,-1
-    A(ir,jk) =  (1.0-w)*A(ir,jk) + w*1.0/(2.0/dr/dr+2.0/dz/dz+m1/r_var(ir)/r_var(ir))*(                     &
-                 (1.0/dr/dr-1.0/2.0/r_var(ir)/dr)*A(ir-1,jk) &
-              +  (1.0/dr/dr+1.0/2.0/r_var(ir)/dr)*A(ir+1,jk) &
-              +  1.0/dz/dz                     *A(ir,jk+1) &
-              +  1.0/dz/dz                     *A(ir,jk-1) &
-              -  rho(ir,jk)    )
-     end do
-   end do
-else if (rank==0) then
+ if (rank==0) then
+  if (numRanks>1) then
    do jk = Nk,1,-1
     do ir = Nj-1,1,-1
     A(ir,jk) =  (1.0-w)*A(ir,jk) + w*1.0/(2.0/dr/dr+2.0/dz/dz+m1/r_var(ir)/r_var(ir))*(                     &
@@ -186,6 +175,30 @@ else if (rank==0) then
               +  1.0/dz/dz                     *A(ir,jk-1) &
               -  rho(ir,jk)    )
        end do
+   end do
+  else
+   do jk = Nk-1,1,-1
+    do ir = Nj-1,1,-1
+    A(ir,jk) =  (1.0-w)*A(ir,jk) + w*1.0/(2.0/dr/dr+2.0/dz/dz+m1/r_var(ir)/r_var(ir))*(                     &
+                 (1.0/dr/dr-1.0/2.0/r_var(ir)/dr)*A(ir-1,jk) &
+              +  (1.0/dr/dr+1.0/2.0/r_var(ir)/dr)*A(ir+1,jk) &
+              +  1.0/dz/dz                     *A(ir,jk+1) &
+              +  1.0/dz/dz                     *A(ir,jk-1) &
+              -  rho(ir,jk)    )
+       end do
+   end do
+  end if 
+! compute over extended region including boundary cells
+else if (rank==numRanks-1) then 
+   do jk = Nk-1,0,-1
+    do ir = Nj-1,1,-1
+    A(ir,jk) =  (1.0-w)*A(ir,jk) + w*1.0/(2.0/dr/dr+2.0/dz/dz+m1/r_var(ir)/r_var(ir))*(                     &
+                 (1.0/dr/dr-1.0/2.0/r_var(ir)/dr)*A(ir-1,jk) &
+              +  (1.0/dr/dr+1.0/2.0/r_var(ir)/dr)*A(ir+1,jk) &
+              +  1.0/dz/dz                     *A(ir,jk+1) &
+              +  1.0/dz/dz                     *A(ir,jk-1) &
+              -  rho(ir,jk)    )
+    end do
    end do
 else
    do jk = Nk,0,-1
@@ -224,11 +237,14 @@ call MPI_Comm_rank(MPI_COMM_WORLD, rank)
 
    pi=acos(-1.0)
    dtheta = 2.0*pi/128
-   m1 = (cos((m-1)*dtheta)-1.)/dtheta/dtheta
+   m1 = 0d0 
+   !m1 = (cos((m-1)*dtheta)-1.)/dtheta/dtheta
    do i = 0,Nj
      r_var(i) = (float(i)-0.5)*dr
    end do
-if (rank==numRanks-1) then
+
+if (numRanks>1) then
+ if (rank==numRanks-1) then
 !! Calculate the residual 
    do jk = 0, Nk-1
      do ir = 1, Nj-1
@@ -241,7 +257,7 @@ if (rank==numRanks-1) then
               -  rho(ir,jk)    )
      end do
    end do
-else
+ else
    do jk = 1, Nk
      do ir = 1, Nj-1
       Resid(ir,jk) =    (                                                 &
@@ -253,8 +269,19 @@ else
               -  rho(ir,jk)    )
      end do
    end do
-
-
+ end if
+else
+   do jk = 1, Nk-1
+     do ir = 1, Nj-1
+      Resid(ir,jk) =    (                                                 &
+                 (1.0/dr/dr-1.0/2.0/r_var(ir)/dr)*A(ir-1,jk)              &
+              +  (1.0/dr/dr+1.0/2.0/r_var(ir)/dr)*A(ir+1,jk)              &
+              +  1.0/dz/dz                     *A(ir,jk+1)                &
+              +  1.0/dz/dz                     *A(ir,jk-1)                &
+              - (2.0/dr/dr+2.0/dz/dz+m1/r_var(ir)/r_var(ir))*A(ir,jk)     &  
+              -  rho(ir,jk)    )
+     end do
+   end do
 end if
 End Subroutine Residual
 
