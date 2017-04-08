@@ -29,7 +29,7 @@ integer, parameter   :: fd=73
 integer              :: ir,iz,jj,kk,nr
 integer              :: rank, numRanks, bufSize, tag=11
 type(MPI_Status)     :: status
-character(len=*), parameter :: fmt="(i3,1x,i3,1x,1e16.5)"
+character(len=*), parameter :: fmt="(i3,1x,i3,1x,1pe22.5)"
 
 call MPI_Comm_size(MPI_COMM_WORLD, numRanks)
 call MPI_Comm_rank(MPI_COMM_WORLD, rank)
@@ -134,7 +134,7 @@ if (rank == 0) then
   open(fd,file="out_" // id // ".txt")
  ! write lower (in z) boundary values plus interior of rank 0
 
- do l = -1,K
+ do l = 1,K
    do i = 1,J
      write(fd,fmt)  i, l, A(i,l)
    end do
