@@ -213,10 +213,10 @@ C$OMP DO
         if(l.eq.1)then
         open(unit=59,file='boundaryConditions.dat',form='FORMATTED')
          do j=2,jmax+1
-         write(59,"(i3,1x,i3,1x,1e16.5)") J,KMAX+1,PHI(J,KMAX+1,L)
+         write(59,"(i3,1x,i3,1x,1pe22.15)") J,KMAX+1,PHI(J,KMAX+1,L)
          end do
          do k=2,kmax+1
-          write(59,"(i3,1x,i3,1x,1e16.5)") JMAX+1,K,PHI(JMAX+1,K,L)
+          write(59,"(i3,1x,i3,1x,1pe22.15)") JMAX+1,K,PHI(JMAX+1,K,L)
          end do
         close(59)
         end if
@@ -229,20 +229,20 @@ C     (remember, densities are in array phi right now.)
        if(l.eq.1)then
        open(unit=53,file="density.dat", FORM="formatted")  
         DO J=1,JMAX
-            write(53,"(i3,1x,i3,1x,1e16.5)") J,2,PIG4*PHI(J,2,L)
+            write(53,"(i3,1x,i3,1x,1PE22.15)") J,2,PIG4*PHI(J,2,L)
         END DO
   
-        write(53,"(i3,1x,i3,1x,1e16.5)") jmax+1,2,PHI(JMAX+1,2,L)
+        write(53,"(i3,1x,i3,1x,1pe22.15)") jmax+1,2,PHI(JMAX+1,2,L)
 
         DO K=2,KMAX
           DO J=1,JMAX
-            write(53,"(i3,1x,i3,1x,1e16.5)") J,K,PIG4*PHI(J,K,L)
+            write(53,"(i3,1x,i3,1x,1pe22.15)") J,K,PIG4*PHI(J,K,L)
           ENDDO
-            write(53,"(i3,1x,i3,1x,1e16.5)") jmax+1,K,PHI(JMAX+1,K,L)
+            write(53,"(i3,1x,i3,1x,1pe22.15)") jmax+1,K,PHI(JMAX+1,K,L)
         ENDDO
 
          do j=1,jmax+1
-         write(53,"(i3,1x,i3,1x,1e16.5)") J,KMAX+1,PHI(J,KMAX+1,L)
+         write(53,"(i3,1x,i3,1x,1pe22.15)") J,KMAX+1,PHI(J,KMAX+1,L)
          end do
         
        close(53)
@@ -276,7 +276,7 @@ C     Solution on 2-D grid is complete.
         open(unit=51,file='fourierMatrix.dat',form='formatted')
         DO K=2,KMAX
           DO J=2,JMAX
-            write(51,"(i3,1x,i3,1x,1e16.5)") J-1,K-1,Y(J-1,K-1)
+            write(51,"(i3,1x,i3,1x,1e22.15)") J-1,K-1,Y(J-1,K-1)
           ENDDO
         ENDDO
         close(51)
