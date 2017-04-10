@@ -59,12 +59,12 @@ Subroutine Prolongate(J, K, V1h, V2h)
     end do
   end do
 
-  do iz = 0, n
-     V1h(J,iz) = V2h(n+1,iz)      ! right halo cells
-  end do
-  do ir = 0, m
-     V1h(ir,K) = V2h(ir,m+1)      ! top   halo cells
-  end do
+!  do iz = 0, n
+!     V1h(J,iz) = V2h(n+1,iz)      ! right halo cells
+!  end do
+!  do ir = 0, m
+!     V1h(ir,K) = V2h(ir,m+1)      ! top   halo cells
+!  end do
 
 End Subroutine Prolongate
 
@@ -129,9 +129,9 @@ Subroutine RestrictRho(J, K, V1h, V2h)
   end do
 
   do ir=0,m
-     V2h(ir,n  ) = 1.0/12.0*(    V1h(2*ir-1,2*n+1)  + 2.0*V1h(2*m,2*n+1)  &
-                          + 2.0*V1h(2*ir-1,2*n  )  + 4.0*V1h(2*m,2*n  )  &
-                          +     V1h(2*ir-1,2*n-1)  + 2.0*V1h(2*m,2*n-1) )
+     V2h(ir,n  ) = 1.0/12.0*(    V1h(2*ir-1,2*n+1)  + 2.0*V1h(2*ir,2*n+1)  &
+                          + 2.0*V1h(2*ir-1,2*n  )  + 4.0*V1h(2*ir,2*n  )  &
+                          +     V1h(2*ir-1,2*n-1)  + 2.0*V1h(2*ir,2*n-1) )
      V2h(ir,n+1) = 0.25*(V1h(2*ir-1,K)+2.*V1h(2*ir,K)+V1h(2*ir+1,K))
   end do
      V2h(m+1,n+1) = V1h(J,K)
@@ -158,7 +158,7 @@ call MPI_Comm_rank(MPI_COMM_WORLD, rank)
    pi=acos(-1.0)
    dtheta=2.*pi/128.
    
-   w = 1.0d0
+   w = 1.5d0
    m1 = (cos((m-1)*dtheta)-1.)/dtheta/dtheta
    do i = 0,Nj+1
      r_var(i) = (float(i)-0.5)*dr
