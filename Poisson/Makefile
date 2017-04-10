@@ -47,7 +47,7 @@ check: poisson_solver
 	poisson_solver
 
 check-multi: poisson_multigrid
-	poisson_multigrid
+	mpirun -np 4 poisson_multigrid
 
 check-relax: poisson_relax
 	poisson_relax
