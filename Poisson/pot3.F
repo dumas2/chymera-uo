@@ -71,8 +71,8 @@ C For convenience, put all rho's into phi array -- leave boundary phi's
 C alone.
 C$OMP DO
       DO L=1,LMAX                                                     
-        DO K=2,KMAX
-          DO J=2,JMAX
+        DO K=1,KMAX
+          DO J=1,JMAX
 #if PARTICLE>0
             PHI(J,K,L)=RHOTOT(J,K,L)
 #else
@@ -83,7 +83,9 @@ C$OMP DO
       ENDDO
 C$OMP ENDDO
 
-
+      open(unit=14,form='unformatted')
+      write(14) phi
+      close(14)
 C-----------------------------------------------------------------------
 C
 C  If lmax>1 then for all j,k, calculate fourier transform of rho's
@@ -139,6 +141,7 @@ C     Copy fourier transform back into phi array.
               IF(L.LT.N) THEN
                 PHI(J,K,L+N+1)=B1(L+1)*SF1
               ENDIF
+             write(100+L,*) j,k,L, A1(L)*SF1, B1(L)*SF1
             ENDDO
             DO L=N+1,LMAX
               A1(L) = 0.0
@@ -271,16 +274,6 @@ C
      &        AM,BM,CM,JMAX-1,Y,IERROR,WFW)         
 C     Solution on 2-D grid is complete.
         
-        if(L.EQ.1) then
-        print *, "write solution loop"
-        open(unit=51,file='fourierMatrix.dat',form='formatted')
-        DO K=2,KMAX
-          DO J=2,JMAX
-            write(51,"(i3,1x,i3,1x,1e22.15)") J-1,K-1,Y(J-1,K-1)
-          ENDDO
-        ENDDO
-        close(51)
-        end if
 C     Put transformed phi's from y into phi array.
         DO K=2,KMAX                                                    
           DO J=2,JMAX
@@ -343,6 +336,16 @@ C$OMP END PARALLEL
       print *, "calling zaxphi"
       CALL ZAXPHI(NPOINT,IPRINT)
 
+        do L = 1,9
+        print *, "write solution loop"
+        open(unit=90+L,form='formatted')
+        DO K=2,KMAX+1
+          DO J=2,JMAX+1
+            write(90+L,"(i3,1x,i3,1x,1e22.15)") J-1,K-1,PHI(J,K,L)
+          ENDDO
+        ENDDO
+        close(90+L)
+        end do
 
       RETURN
       END                                                                
