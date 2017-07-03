@@ -35,37 +35,43 @@ Subroutine Prolongate(J, K, V1h, V2h)
 !  Interpolation (prolongation) operator R^(J/2+1,K/2+1) => R^(J+1,K+1)
 !
 !  J-1 is the number of interior fine grid cells in radial direction
-
+use MPI_F08  , only : MPI_Comm_rank, MPI_Comm_size, MPI_COMM_WORLD
 !
   implicit none
   integer, intent(in) :: J, K
   real :: V1h(-1:J+1,-1:K+1), V2h(-1:J/2+1,-1:K/2+1)
-  integer :: ir, iz, jj, kk, m, n
+  integer :: ir, iz, jj, kk, m, n, rank, numRanks
+
+call MPI_Comm_size(MPI_COMM_WORLD, numRanks)
+call MPI_Comm_rank(MPI_COMM_WORLD, rank)
 
   m = J/2 - 1     ! # interior coarse cells in radial direction
   n = K/2 - 1     ! # interior coarse cells in vertical direction
 
-  do iz = 0, n
+  do iz = 0, n+1
     kk = 2*iz
     do ir = 0, m
       jj = 2*ir
 
       V1h(jj,kk) = V2h(ir,iz)
-
       V1h(jj+1,kk  ) =  .5*(V2h(ir,iz) + V2h(ir+1,iz  ))
       V1h(jj  ,kk+1) =  .5*(V2h(ir,iz) + V2h(ir  ,iz+1))
-
       V1h(jj+1,kk+1) = .25*(V2h(ir,iz) + V2h(ir,iz+1) + V2h(ir+1,iz) + V2h(ir+1,iz+1))
     end do
   end do
 
-!  do iz = 0, n
-!     V1h(J,iz) = V2h(n+1,iz)      ! right halo cells
-!  end do
-!  do ir = 0, m
-!     V1h(ir,K) = V2h(ir,m+1)      ! top   halo cells
-!  end do
+ if(rank.eq.numRanks-1) then
+  do ir = 0, m
+     V1h(2*ir,K) = V2h(ir,n+1)      ! top   halo cells
+     V1h(2*ir+1,K) = .5*(V2h(ir,n+1)+V2h(ir+1,n+1))      ! top   halo cells
+  end do
+ end if
 
+
+  do iz = 0, n+1
+     V1h(J,2*iz) = V2h(m+1,iz)      ! right halo cells
+     V1h(J,2*iz+1) = .5*(V2h(m+1,iz)+V2h(m+1,iz+1))      ! right halo cells
+  end do
 End Subroutine Prolongate
 
 Subroutine Restrict(J, K, V1h, V2h)
@@ -103,17 +109,21 @@ Subroutine RestrictRho(J, K, V1h, V2h)
 !  J-1 is the number of interior fine grid cells in radial direction
 !  K-1 is the number of interior fine grid cells in vertical direction
 !
+use MPI_F08  , only : MPI_Comm_rank, MPI_Comm_size, MPI_COMM_WORLD
+!
   implicit none
   integer, intent(in) :: J, K
   real :: V1h(-1:J+1,-1:K+1), V2h(-1:J/2+1,-1:K/2+1)
-  integer :: ir, iz, jj, kk, m, n
+  integer :: ir, iz, jj, kk, m, n,rank,numRanks
 
+call MPI_Comm_size(MPI_COMM_WORLD, numRanks)
+call MPI_Comm_rank(MPI_COMM_WORLD, rank)
   m = J/2 - 1     ! # interior coarse cells in radial direction
   n = K/2 - 1     ! # interior coarse cells in vertical direction
 
-  do iz = 0, n-1
+  do iz = 0, n
     kk = 2*iz
-    do ir = 0, m-1
+    do ir = 0, m
       jj = 2*ir
 
       V2h(ir,iz) = .25*(.25*V1h(jj-1,kk+1) + .5*V1h(jj,kk+1) + .25*V1h(jj+1,kk+1)   &
@@ -122,19 +132,24 @@ Subroutine RestrictRho(J, K, V1h, V2h)
     end do
   end do
 
-  do iz=0,n
-     V2h(m,iz) = 1.0/12.0*(2.*V1h(2*m-1,2*iz) + 4.*V1h(2*m,2*iz) + 2.*v1h(2*m+1,2*iz) &
-            +      V1h(2*m-1,2*iz-1)  + 2.0*V1h(2*m,2*iz-1) + V1h(2*m+1,2*iz-1))
+  do iz=0,n+1
      V2h(m+1,iz) = 0.25*(V1h(J,2*iz-1)+2.0*V1h(J,2*iz)+V1h(J,2*iz+1))
   end do
-
+if(rank.eq.numRanks-1)then
   do ir=0,m
-     V2h(ir,n  ) = 1.0/12.0*(    V1h(2*ir-1,2*n+1)  + 2.0*V1h(2*ir,2*n+1)  &
-                          + 2.0*V1h(2*ir-1,2*n  )  + 4.0*V1h(2*ir,2*n  )  &
-                          +     V1h(2*ir-1,2*n-1)  + 2.0*V1h(2*ir,2*n-1) )
      V2h(ir,n+1) = 0.25*(V1h(2*ir-1,K)+2.*V1h(2*ir,K)+V1h(2*ir+1,K))
   end do
      V2h(m+1,n+1) = V1h(J,K)
+else
+  do ir=0,m
+    jj = 2*ir
+     kk = 2*(n+1)
+      V2h(ir,n+1) = .25*(.25*V1h(jj-1,kk+1) + .5*V1h(jj,kk+1) + .25*V1h(jj+1,kk+1)   &
+                      +  .5*V1h(jj-1,kk  ) +    V1h(jj,kk  ) +  .5*V1h(jj+1,kk  )   &
+                      + .25*V1h(jj-1,kk-1) + .5*V1h(jj,kk-1) + .25*V1h(jj+1,kk-1))
+  end do
+end if
+
 End Subroutine RestrictRho
 
 Subroutine Relax(Nj, Nk, m, A, Tmp, rho, dr, dz)
@@ -156,10 +171,11 @@ call MPI_Comm_size(MPI_COMM_WORLD, numRanks)
 call MPI_Comm_rank(MPI_COMM_WORLD, rank)
 
    pi=acos(-1.0)
-   dtheta=2.*pi/128.
+   dtheta=2.*pi/32.
    
-   w = 1.5d0
-   m1 = (cos((m-1)*dtheta)-1.)/dtheta/dtheta
+   w = 1.3d0
+!   m1 = (cos((m-1)*dtheta)-1.)/dtheta/dtheta
+   m1 = float(m)
    do i = 0,Nj+1
      r_var(i) = (float(i)-0.5)*dr
    end do
@@ -168,7 +184,7 @@ call MPI_Comm_rank(MPI_COMM_WORLD, rank)
   if (numRanks>1) then
    do jk = Nk,1,-1
     do ir = Nj-1,1,-1
-    A(ir,jk) =  (1.0-w)*A(ir,jk) + w*1.0/(2.0/dr/dr+2.0/dz/dz+m1/r_var(ir)/r_var(ir))*(                     &
+    A(ir,jk) =  (1.0-w)*A(ir,jk) + w*1.0/(2.0/dr/dr+2.0/dz/dz+m1*m1/r_var(ir)/r_var(ir))*(                     &
                  (1.0/dr/dr-1.0/2.0/r_var(ir)/dr)*A(ir-1,jk) &
               +  (1.0/dr/dr+1.0/2.0/r_var(ir)/dr)*A(ir+1,jk) &
               +  1.0/dz/dz                     *A(ir,jk+1) &
@@ -179,7 +195,7 @@ call MPI_Comm_rank(MPI_COMM_WORLD, rank)
   else
    do jk = Nk-1,1,-1
     do ir = Nj-1,1,-1
-    A(ir,jk) =  (1.0-w)*A(ir,jk) + w*1.0/(2.0/dr/dr+2.0/dz/dz+m1/r_var(ir)/r_var(ir))*(                     &
+    A(ir,jk) =  (1.0-w)*A(ir,jk) + w*1.0/(2.0/dr/dr+2.0/dz/dz+m1*m1/r_var(ir)/r_var(ir))*(                     &
                  (1.0/dr/dr-1.0/2.0/r_var(ir)/dr)*A(ir-1,jk) &
               +  (1.0/dr/dr+1.0/2.0/r_var(ir)/dr)*A(ir+1,jk) &
               +  1.0/dz/dz                     *A(ir,jk+1) &
@@ -192,7 +208,7 @@ call MPI_Comm_rank(MPI_COMM_WORLD, rank)
 else if (rank==numRanks-1) then 
    do jk = Nk-1,0,-1
     do ir = Nj-1,1,-1
-    A(ir,jk) =  (1.0-w)*A(ir,jk) + w*1.0/(2.0/dr/dr+2.0/dz/dz+m1/r_var(ir)/r_var(ir))*(                     &
+    A(ir,jk) =  (1.0-w)*A(ir,jk) + w*1.0/(2.0/dr/dr+2.0/dz/dz+m1*m1/r_var(ir)/r_var(ir))*(                     &
                  (1.0/dr/dr-1.0/2.0/r_var(ir)/dr)*A(ir-1,jk) &
               +  (1.0/dr/dr+1.0/2.0/r_var(ir)/dr)*A(ir+1,jk) &
               +  1.0/dz/dz                     *A(ir,jk+1) &
@@ -203,7 +219,7 @@ else if (rank==numRanks-1) then
 else
    do jk = Nk,0,-1
     do ir = Nj-1,1,-1
-    A(ir,jk) =  (1.0-w)*A(ir,jk) + w*1.0/(2.0/dr/dr+2.0/dz/dz+m1/r_var(ir)/r_var(ir))*(                     &
+    A(ir,jk) =  (1.0-w)*A(ir,jk) + w*1.0/(2.0/dr/dr+2.0/dz/dz+m1*m1/r_var(ir)/r_var(ir))*(                     &
                  (1.0/dr/dr-1.0/2.0/r_var(ir)/dr)*A(ir-1,jk) &
               +  (1.0/dr/dr+1.0/2.0/r_var(ir)/dr)*A(ir+1,jk) &
               +  1.0/dz/dz                     *A(ir,jk+1) &
@@ -212,7 +228,6 @@ else
        end do
    end do
 end if
-
 End Subroutine Relax
 
 
@@ -236,9 +251,9 @@ call MPI_Comm_rank(MPI_COMM_WORLD, rank)
 
 
    pi=acos(-1.0)
-   dtheta = 2.0*pi/128
-   m1 = 0d0 
-   !m1 = (cos((m-1)*dtheta)-1.)/dtheta/dtheta
+   dtheta = 2.0*pi/32
+   m1 = float(m)
+!  m1 = (cos((m-1)*dtheta)-1.)/dtheta/dtheta
    do i = 0,Nj
      r_var(i) = (float(i)-0.5)*dr
    end do
@@ -253,7 +268,7 @@ if (numRanks>1) then
               +  (1.0/dr/dr+1.0/2.0/r_var(ir)/dr)*A(ir+1,jk)              &
               +  1.0/dz/dz                     *A(ir,jk+1)                &
               +  1.0/dz/dz                     *A(ir,jk-1)                &
-              - (2.0/dr/dr+2.0/dz/dz+m1/r_var(ir)/r_var(ir))*A(ir,jk)     &  
+              - (2.0/dr/dr+2.0/dz/dz+m1*m1/r_var(ir)/r_var(ir))*A(ir,jk)     &  
               -  rho(ir,jk)    )
      end do
    end do
@@ -265,7 +280,7 @@ if (numRanks>1) then
               +  (1.0/dr/dr+1.0/2.0/r_var(ir)/dr)*A(ir+1,jk)              &
               +  1.0/dz/dz                     *A(ir,jk+1)                &
               +  1.0/dz/dz                     *A(ir,jk-1)                &
-              - (2.0/dr/dr+2.0/dz/dz+m1/r_var(ir)/r_var(ir))*A(ir,jk)     &  
+              - (2.0/dr/dr+2.0/dz/dz+m1*m1/r_var(ir)/r_var(ir))*A(ir,jk)     &  
               -  rho(ir,jk)    )
      end do
    end do
@@ -278,7 +293,7 @@ else
               +  (1.0/dr/dr+1.0/2.0/r_var(ir)/dr)*A(ir+1,jk)              &
               +  1.0/dz/dz                     *A(ir,jk+1)                &
               +  1.0/dz/dz                     *A(ir,jk-1)                &
-              - (2.0/dr/dr+2.0/dz/dz+m1/r_var(ir)/r_var(ir))*A(ir,jk)     &  
+              - (2.0/dr/dr+2.0/dz/dz+m1*m1/r_var(ir)/r_var(ir))*A(ir,jk)     &  
               -  rho(ir,jk)    )
      end do
    end do
