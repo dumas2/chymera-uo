@@ -102,6 +102,79 @@ deallocate(buf)
 
 end subroutine readDensity
 
+subroutine readData(A,jmax,kmax,lmax)
+! Reads in density and calculated boundary conditions.      
+!
+! Note: jmax and kmax must be powers of 2 for multigrid to work
+!       interior for multigrid is (1:jmax-1,1:kmax-1)
+!
+use MPI_F08, only : MPI_Comm_rank, MPI_Comm_size, MPI_COMM_WORLD
+use MPI_F08, only : MPI_Send, MPI_Recv, MPI_DOUBLE_PRECISION, MPI_Status
+implicit none
+integer, intent(in)  :: jmax,kmax,lmax
+real   , intent(inout) :: A(-1:jmax+1,-1:kmax+1,1:lmax) ! dimensions for multigrid, odd interior pts, 2 halo cells
+real   , allocatable :: buf(:,:,:),buf2(:,:,:)
+integer, parameter   :: fd=14
+integer              :: ir,iz,jj,kk,ll,nr
+integer              :: rank, numRanks, bufSize, tag=11
+type(MPI_Status)     :: status
+character(len=*), parameter :: fmt="(i3,1x,i3,1x,1pe22.5)"
+
+call MPI_Comm_size(MPI_COMM_WORLD, numRanks)
+call MPI_Comm_rank(MPI_COMM_WORLD, rank)
+
+bufSize = (jmax+2)*(kmax+3)*lmax
+allocate(buf(1:jmax+2,1:numRanks*kmax+2,1:lmax),buf2(1:jmax+2,1:kmax+3,1:lmax))
+
+! initialize so that boundaries will be zero
+buf = 0.0
+buf2 = 0.0
+!! Rank 0 should read in data and then send it to cohorts
+!    - z dimension is broken into numRanks partitions
+!
+if (rank == 0) then
+  open(unit=fd, FORM="UNFORMATTED")
+
+  ! read in data for rank 0
+  read(14) buf
+
+ ! write buf for master to array  
+do ll = 1,lmax
+ do kk = 1,kmax+2
+  do jj = 1,jmax+2
+  A(jj-1,kk-1,ll) = buf(jj,kk,ll)      ! copy entire array
+  end do
+ end do
+end do
+
+do nr = 1,numRanks-1
+      call MPI_Send(buf(:,nr*kmax:kmax*(nr+1)+2,:),bufSize,MPI_DOUBLE_PRECISION,nr,tag,MPI_COMM_WORLD)
+     print *, "sent k= ",nr*kmax,"-",kmax*(nr+1)+2,"data to rank ",nr
+end do
+
+  ! read in data for other ranks and send the buffer
+
+close(fd)
+
+else  ! receiving ranks (other than rank 0)
+
+  call MPI_Recv(buf2, bufSize, MPI_DOUBLE_PRECISION, 0, tag, MPI_COMM_WORLD, status)
+
+do ll = 1,lmax
+ do kk = 1,kmax+3     ! contains cell above and below shared cell.
+  do jj = 1,jmax+2
+  A(jj-1,kk-2,ll) = buf2(jj,kk,ll)  
+  end do
+ end do
+end do
+
+end if
+
+deallocate(buf,buf2)
+
+end subroutine readData
+
+
 subroutine writeData(b,J,K,A,id)
 ! Writes array as text to file for easy plotting using gnuplot.
 use MPI_F08, only : MPI_Comm_rank, MPI_Comm_size, MPI_COMM_WORLD
@@ -134,8 +207,8 @@ if (rank == 0) then
   open(fd,file="out_" // id // ".txt")
  ! write lower (in z) boundary values plus interior of rank 0
 
- do l = 1,K
-   do i = 1,J
+ do l = b,K
+   do i = b,J
      write(fd,fmt)  i, l, A(i,l)
    end do
  end do
@@ -143,7 +216,7 @@ if (rank == 0) then
   do nr = 1, numRanks-1
     call MPI_Recv(buf, bufSize, MPI_DOUBLE_PRECISION, nr, tag, MPI_COMM_WORLD, status)
     do l = 1,K
-     do i = 1,J
+     do i = b,J
        write(fd,fmt)  i, K*nr+l, buf(i,l)
      end do
     end do
