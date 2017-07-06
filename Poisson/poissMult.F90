@@ -8,37 +8,37 @@ subroutine PoissMultigrid(rho,phi,Nj,Nk,Nl,l,dr,dz)
 !
 ! Method      :
 !
-!   Iterative (over)relaxation. 
+!   Multigrid method.   
 !==============================================================================
 use MultiGrid, only : Relax, Residual, Prolongate, Restrict, RestrictRho
 use io       , only : readDensity, writeData
 #ifdef USE_NETCDF
 use io       , only : initFileNetCDF, writeDataNetCDF
 #endif
-use MPI_F08  , only : MPI_Init, MPI_Finalize, MPI_Barrier
-use MPI_F08  , only : MPI_Send, MPI_Recv, MPI_DOUBLE_PRECISION, MPI_Status
+use MPI_F08  , only : MPI_Init, MPI_Finalize, MPI_Barrier,MPI_Reduce
+use MPI_F08  , only : MPI_Send, MPI_Recv, MPI_Status,mpi_bcast
 use MPI_F08  , only : MPI_Comm_rank, MPI_Comm_size, MPI_COMM_WORLD
+use MPI_F08  , only : MPI_Integer, MPI_DOUBLE_PRECISION, mpi_max
 implicit none
 
-real   , parameter :: tol =  1e-10
+real   , parameter :: tol =  1e-7
 
-integer, intent(in) :: Nj, Nk, Nl
 real, intent(inout) :: rho(-1:Nj+1, -1:Nk+1)
-real, intent(in) :: dz, dr
 real, intent(inout) :: phi(-1:Nj+1, -1:Nk+1)
-integer, intent(in) :: l     ! consider m=1 Fourier mode for testing
+real, intent(in) :: dz, dr
+integer, intent(in) :: Nj, Nk, Nl, l
 
 
-integer   :: i,k,mn,ir,iz,p,je,ke,j,m
+integer   :: i,k,mn,ir,iz,p,j,m
 integer   :: rank, numRanks, nr, loop
-integer   :: nsteps = 2, debug = 0
+integer   :: nsteps = 2, debug = 1
 
-integer   :: msteps = 80
-integer   :: diag = 50
+integer   :: msteps = 200
+integer   :: diag = 100
 real, allocatable :: V1h(:,:)  , Tmp(:,:)  , V2h(:,:)   , error(:,:)
 real, allocatable :: Resid(:,:), rho2h(:,:), resid2(:,:), Tmp2(:,:)
 
-real              :: w, errmax, buf, residTot(64)
+real              :: w, errmax, buf, residTmp
 
 character(len=6) :: iter
 character(len=6) :: numrlx
@@ -73,8 +73,6 @@ call RestrictRho(Nj  ,  Nk  ,  rho  ,  rho2h)
 #ifdef USE_NETCDF
 call writeDataNetCDF(rho, 1, Nj, Nk, Ntk, Nl)
 #endif
-errmax = 1e6
-mn = 0
 
 ! this is the fourier mode. 
 if(l.lt.Nl/2+1) then
@@ -82,12 +80,17 @@ m  = l-1
 else
 m = l - Nl/2-1
 end if
-do while(mn.lt.msteps)
-!do while(errmax.gt.tol)
+
+!! Main while loop
+errmax = 1e6
+mn = 0
+!do while(mn.lt.msteps) ! used for testing
+do while(errmax.gt.tol) ! Main while loop
 
 !    -------------------------
 mn = mn + 1
 !Update boundary before relaxing.
+resid = 0.0
 !! Dirichlet boundary conditions in the midplane.
 if (rank == 0)then
   do ir = 0,Nj+1
@@ -111,10 +114,10 @@ end if
 
 !Relax on V1h using rho as source
 do j = 1,nsteps
-if (numRanks>1) then
- call ExchangeHalo(rank,Nj,Nk,V1h)
-end if
-call Relax(Nj, Nk, m, V1h, Tmp, rho, dr, dz)
+  if(numRanks>1) then
+   call ExchangeHalo(rank,Nj,Nk,V1h)
+  end if
+ call Relax(Nj, Nk, m, V1h, Tmp, rho, dr, dz)
 end do
 
  do iz = -1,Nk+1
@@ -136,34 +139,32 @@ do j=1,nsteps
 call ExchangeHalo(rank,Nj/2,Nk/2,resid2)
 call Relax(Nj/2, Nk/2, m, resid2, Tmp2, V2h, 2.0*dr, 2.0*dz)
 end do
-!write data here
-
-error = 0.0
 
 ! Interpolate error to fine mesh.
+error = 0.0
 call ExchangeHalo(rank,Nj/2,Nk/2,resid2)
 call prolongate(Nj, Nk, error, resid2)
 call ExchangeHalo(rank,Nj,Nk,error)
 
-if(rank==numRanks-1) then
-do j = 0,Nj-1
- do k = 0,Nk-1
-  V1h(j,k) = V1h(j,k) - error(j,k)
- end do
-end do
-else
 ! Correct
-do j = 0,Nj-1
- do k = 0,Nk
-  V1h(j,k) = V1h(j,k) - error(j,k)
+if(rank==numRanks-1) then
+ do j = 0,Nj-1
+  do k = 0,Nk-1
+   V1h(j,k) = V1h(j,k) - error(j,k)
+  end do
  end do
-end do
+else
+ do j = 0,Nj-1
+  do k = 0,Nk
+   V1h(j,k) = V1h(j,k) - error(j,k)
+  end do
+ end do
 end if
+
 !update boundary again
 if (rank == 0)then
   do ir = 0,Nj+1
     V1h(ir, 0) = V1h(ir,1) 
-!   V1h(ir,-1) = V1h(ir,2) 
   end do
 end if
 
@@ -187,46 +188,34 @@ call Relax(Nj, Nk, m, V1h, Tmp, rho, dr, dz)
 end do
 call ExchangeHalo(rank,Nj,Nk,V1h)
 
+
+
 ! Calculate residual. Max value is current error.
 call Residual(Nj, Nk, m, V1h, Resid, rho, dr, dz)
- if((mod(mn,diag)==0))then
+call Relax(Nj, Nk, m, resid, Tmp, V1h, dr, dz)
+
+! Write data for debug
+ if((mod(mn,diag)==0).and.(debug==1))then
    write(iter,"(i6.6)") mn
    write(fm,"(i3.3)") l
-
- if(debug==1) then
-   call writeData(0,Nj,Nk,V1h, "sol." // iter // fm)
-   call writeData(-1,Nj,Nk,error, "error." // iter // fm)
-   call writeData(-1,Nj/2,Nk/2,resid2, "error.2h." // iter // fm)
-   call writeData(0,Nj/2,Nk/2,V2h, "sol.2." // iter )
-   call writeData(0,Nj, Nk, Resid, "resid." // iter ) 
- end if 
-
-  print *, "Rank",rank,"Wrote to file at iteration " // iter // ",", maxval(abs(Resid))
+     call writeData(0,Nj,Nk,V1h, "sol." // iter // fm)
+     call writeData(-1,Nj,Nk,error, "error." // iter // fm)
+     call writeData(-1,Nj/2,Nk/2,resid2, "error.2h." // iter // fm)
+   print *, "Rank",rank,"Wrote to file at iteration " // iter // ",", maxval(abs(error))
 
  end if
+ ! Calculate max error on any process. 
+ residTmp = maxval(abs(error))
+call MPI_Reduce(residTmp,errmax,1,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_WORLD)
+call MPI_Bcast(errmax,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD)
 
-if (rank ==0 ) then
- residTot(1) = maxval(abs(error))
- do nr = 1,numRanks-1
-  call MPI_Recv(buf,1,MPI_DOUBLE_PRECISION, nr, 17, MPI_COMM_WORLD, status)
-  if (buf>residTot(1)) then
-   residTot(1) = buf
-  end if
- end do
-else 
- residTot(rank+1) = maxval(abs(error))
- call MPI_Send(residTot(rank+1), 1, MPI_DOUBLE_PRECISION, 0, 17, MPI_COMM_WORLD)
+!write max error to file
+if(rank==0) then
+write(75,"(i2.2,1x,i6.6,1x,f30.24)") rank,mn,errmax
 end if
-
- errmax=maxval(residTot)
- write(75,"(i6.6,1x,f30.24)") mn,errmax
 
 end do ! While loop
 
-print *, "rank",rank," believes we are done!!!"
-! Write results
-write(fm,"(i3.3)") l
-call writeData(1,Nj,Nk,V1h, "final." // fm )
 ! set output
 phi = V1h
 
