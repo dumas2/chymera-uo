@@ -15,13 +15,15 @@ implicit none
 real, allocatable :: buf2(:,:,:),buf(:,:,:),array(:,:,:),phi(:,:,:)
   CHARACTER potfile*80,x1*6
 ! common /coefs/coef(pot3jmax2,pot3kmax2,lmax2,2),coef2(pot3jmax2,pot3kmax2,lmax)
-  integer, PARAMETER::JKM1=2*POT3JMAX+POT3KMAX-1
+!  integer, PARAMETER::JKM1=2*POT3JMAX+POT3KMAX-1
   real    :: denny(hj2,hk2)
   integer :: bufSize
   real    :: cvheat, curlyr, delr, delz, den
   real    :: kwfw,phichk,redge,tmass,xmu
 
-integer :: rank, numRanks, nr,tag,jread,ksplit
+integer :: rank, numRanks, nr,tag,jread
+integer :: maxtrm, isym ,igrid
+
 !! start MPI here
 !Initialize MPI
 type(MPI_Status) :: status
@@ -85,16 +87,17 @@ end if
 !...Define some things..
 
   MAXTRM=10
+  print *, "maxtrm", maxtrm
   ISYM  =2
   KWFW=int(log10(dble(KMAX))/log10(two))-1 
 
-  TMASS=zero
-  ENEW=zero
-  ELOST=zero
-  EDIF=zero
-  PHICHK=zero
-  KLOCAT=0
-  GRAV=one
+  !TMASS=zero
+  !ENEW=zero
+  !ELOST=zero
+  !EDIF=zero
+  !PHICHK=zero
+  !KLOCAT=0
+  !GRAV=one
 
   CVHEAT=CURLYR/(XMU*(GAMMA-1.0))
 
@@ -121,6 +124,7 @@ end if
     call writeData(-1,jmax,ksplit,array(:,:,1),'test')
 end if
 !!...Set up the grid. (From radhydro/io.f)
+ print *, "read in the data"
 !!...grid setup
   DELR=ROF3N
   DELZ=ZOF3N
@@ -144,13 +148,17 @@ print *, "dr",dr
 !! be implemented in MPI, but the generation of the boundary conditions is 
 !! a seperate step. 
 
-!  CALL SETBDY(0,ISYM)
-!  CALL BDYGEN(MAXTRM,ISYM,REDGE)
+! CALL SETBDY(0,ISYM)
+! print *, "called setbdy"
+!CALL BDYGEN(MAXTRM,ISYM,REDGE,phi,array)
+! print *, "called bdygen,rank",rank
+! call writeData(1,jmax,ksplit,phi(:,:,1),'fin')
 ! call the potential solver
-
-  CALL POT3MPI(8,IPRINT,jmax,ksplit,lmax,array,dr,phi)
+!  print *, "rank",rank,"has",iprint,jmax,ksplit,lmax,dr
+ CALL POT3MPI(8,IPRINT,jmax,ksplit,lmax,array,dr,phi)
+!  print *, "called pot3,rank",rank
 !  CALL POT3(8,IPRINT)
-  call writeData(1,jmax,ksplit,phi(:,:,1),'fin')
+!  call writeData(1,jmax,ksplit,phi(:,:,1),'fin')
 !!...Write gravitational potential to output file.
 !  write(x1,'(i6.6)')ITSTOP
 !  potfile='phi3d.'//trim(x1)
