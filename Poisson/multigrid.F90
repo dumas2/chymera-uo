@@ -30,6 +30,60 @@ Module MultiGrid
   
 Contains
 
+Subroutine ExchangeHalo(Nj, Nk, A)
+!
+! Exchange halo information between neighboring processes
+!
+use MPI_F08, only : MPI_Comm_rank, MPI_Comm_size, MPI_COMM_WORLD
+use MPI_F08, only : MPI_Send, MPI_Recv, MPI_DOUBLE_PRECISION, MPI_Status
+   Implicit None
+   Integer, intent(in   ) :: Nj,Nk
+   Real,    intent(inout) :: A(-1:Nj+1,-1:Nk+1)
+
+   Integer :: above, below, tag,bufSize
+   Real    :: topBC, bottomBC   
+   integer :: numRanks, rank
+   type(MPI_Status) :: status
+   real  , allocatable :: bufFromAbove(:),bufFromBelow(:)
+
+Call MPI_Comm_size( MPI_COMM_WORLD, numRanks)
+Call MPI_Comm_rank( MPI_COMM_WORLD, rank)
+
+   allocate(bufFromAbove(Nj+3),bufFromBelow(Nj+3))
+   bufSize=NJ+3
+   tag    = 156
+   above  = rank + 1
+   below  = rank - 1
+    
+   !! MPI halo exchange for parallel version
+!Rank=0, bottom of grid, no below
+if (rank == 0) then
+  Call MPI_Send(A(:,Nk-1), bufSize , MPI_DOUBLE_PRECISION, above, tag, MPI_COMM_WORLD)
+  Call MPI_Recv(bufFromAbove, bufSize, MPI_DOUBLE_PRECISION, above, tag, MPI_COMM_WORLD, status)
+  A(:,Nk+1) = bufFromAbove
+
+!Rank=numRanks-1, top of grid, no above
+else if (rank == numRanks-1) then
+
+  Call MPI_Send(A(:,1), bufSize , MPI_DOUBLE_PRECISION, below, tag, MPI_COMM_WORLD)
+  Call MPI_Recv(bufFromBelow, bufSize, MPI_DOUBLE_PRECISION, below, tag, MPI_COMM_WORLD, status)
+  A(:,-1) = bufFromBelow
+!Middle of grid
+else
+  Call MPI_Send(A(:,Nk-1), bufSize , MPI_DOUBLE_PRECISION, above, tag, MPI_COMM_WORLD)
+
+  Call MPI_Send(A(:,1), bufSize , MPI_DOUBLE_PRECISION, below, tag, MPI_COMM_WORLD)
+  Call MPI_Recv(bufFromBelow, bufSize, MPI_DOUBLE_PRECISION, below, tag, MPI_COMM_WORLD, status)
+  Call MPI_Recv(bufFromAbove, bufSize, MPI_DOUBLE_PRECISION, above, tag, MPI_COMM_WORLD, status)
+  A(:,Nk+1) = bufFromAbove
+  A(:, -1) = bufFromBelow
+
+end if   
+
+deallocate(bufFromAbove,bufFromBelow)
+End Subroutine ExchangeHalo
+
+
 Subroutine Prolongate(J, K, V1h, V2h)
 !
 !  Interpolation (prolongation) operator R^(J/2+1,K/2+1) => R^(J+1,K+1)
@@ -273,7 +327,7 @@ if (numRanks>1) then
      end do
    end do
  else
-   do jk = 1, Nk
+   do jk = 0, Nk
      do ir = 1, Nj-1
       Resid(ir,jk) =    (                                                 &
                  (1.0/dr/dr-1.0/2.0/r_var(ir)/dr)*A(ir-1,jk)              &

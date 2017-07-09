@@ -10,7 +10,7 @@ subroutine PoissMultigrid(rho,phi,Nj,Nk,Nl,l,dr,dz)
 !
 !   Multigrid method.   
 !==============================================================================
-use MultiGrid, only : Relax, Residual, Prolongate, Restrict, RestrictRho
+use MultiGrid, only : Relax, Residual, Prolongate, RestrictRho, ExchangeHalo
 use io       , only : readDensity, writeData
 #ifdef USE_NETCDF
 use io       , only : initFileNetCDF, writeDataNetCDF
@@ -67,7 +67,9 @@ V1h    = 0.0
 V2h    = 0.0
 
 !Exchange halo once to receive upper boundaries of source term
+call ExchangeHalo(Nj,Nk,rho)
 call RestrictRho(Nj  ,  Nk  ,  rho  ,  rho2h)
+call ExchangeHalo(Nj/2,Nk/2,rho2h)
 !call writeData(-1,Nj,Nk,rho, "rhoInit")
 !call writeData(-1,Nj/2,Nk/2,rho2h, "rhoInit2h")
 #ifdef USE_NETCDF
@@ -115,7 +117,7 @@ end if
 !Relax on V1h using rho as source
 do j = 1,nsteps
   if(numRanks>1) then
-   call ExchangeHalo(rank,Nj,Nk,V1h)
+   call ExchangeHalo(Nj,Nk,V1h)
   end if
  call Relax(Nj, Nk, m, V1h, Tmp, rho, dr, dz)
 end do
@@ -136,15 +138,14 @@ call RestrictRho(Nj,Nk,Resid,V2h)
 
 ! Relax on coarse mesh
 do j=1,nsteps
-call ExchangeHalo(rank,Nj/2,Nk/2,resid2)
 call Relax(Nj/2, Nk/2, m, resid2, Tmp2, V2h, 2.0*dr, 2.0*dz)
+call ExchangeHalo(Nj/2,Nk/2,resid2)
 end do
 
 ! Interpolate error to fine mesh.
 error = 0.0
-call ExchangeHalo(rank,Nj/2,Nk/2,resid2)
 call prolongate(Nj, Nk, error, resid2)
-call ExchangeHalo(rank,Nj,Nk,error)
+call ExchangeHalo(Nj,Nk,error)
 
 ! Correct
 if(rank==numRanks-1) then
@@ -183,10 +184,10 @@ end if
 
 ! Relax again on fine mesh.
 do j = 1,nsteps
-call ExchangeHalo(rank,Nj,Nk,V1h)
+call ExchangeHalo(Nj,Nk,V1h)
 call Relax(Nj, Nk, m, V1h, Tmp, rho, dr, dz)
 end do
-call ExchangeHalo(rank,Nj,Nk,V1h)
+call ExchangeHalo(Nj,Nk,V1h)
 
 
 
@@ -221,59 +222,6 @@ phi = V1h
 
 deallocate(V1h,Tmp,Resid,rho2h,resid2,tmp2,v2h)
 
-
-CONTAINS
-
-Subroutine ExchangeHalo(rank, Nj, Nk, A)
-!
-! Exchange halo information between neighboring processes
-!
-use MPI_F08, only : MPI_Comm_rank, MPI_Comm_size, MPI_COMM_WORLD
-use MPI_F08, only : MPI_Send, MPI_Recv, MPI_DOUBLE_PRECISION, MPI_Status
-   Implicit None
-   Integer, intent(in   ) :: Nj,Nk, rank
-   Real,    intent(inout) :: A(-1:Nj+1,-1:Nk+1)
-
-   Integer :: above, below, tag,bufSize
-   Real    :: topBC, bottomBC   
-   type(MPI_Status) :: status
-   real  , allocatable :: bufFromAbove(:),bufFromBelow(:)
-
-Call MPI_Comm_size( MPI_COMM_WORLD, numRanks)
-
-   allocate(bufFromAbove(Nj+3),bufFromBelow(Nj+3))
-   bufSize=NJ+3
-   tag    = 156
-   above  = rank + 1
-   below  = rank - 1
-    
-   !! MPI halo exchange for parallel version
-!Rank=0, bottom of grid, no below
-if (rank == 0) then
-  Call MPI_Send(A(:,Nk-1), bufSize , MPI_DOUBLE_PRECISION, above, tag, MPI_COMM_WORLD)
-  Call MPI_Recv(bufFromAbove, bufSize, MPI_DOUBLE_PRECISION, above, tag, MPI_COMM_WORLD, status)
-  A(:,Nk+1) = bufFromAbove
-
-!Rank=numRanks-1, top of grid, no above
-else if (rank == numRanks-1) then
-
-  Call MPI_Send(A(:,1), bufSize , MPI_DOUBLE_PRECISION, below, tag, MPI_COMM_WORLD)
-  Call MPI_Recv(bufFromBelow, bufSize, MPI_DOUBLE_PRECISION, below, tag, MPI_COMM_WORLD, status)
-  A(:,-1) = bufFromBelow
-!Middle of grid
-else
-  Call MPI_Send(A(:,Nk-1), bufSize , MPI_DOUBLE_PRECISION, above, tag, MPI_COMM_WORLD)
-
-  Call MPI_Send(A(:,1), bufSize , MPI_DOUBLE_PRECISION, below, tag, MPI_COMM_WORLD)
-  Call MPI_Recv(bufFromBelow, bufSize, MPI_DOUBLE_PRECISION, below, tag, MPI_COMM_WORLD, status)
-  Call MPI_Recv(bufFromAbove, bufSize, MPI_DOUBLE_PRECISION, above, tag, MPI_COMM_WORLD, status)
-  A(:,Nk+1) = bufFromAbove
-  A(:, -1) = bufFromBelow
-
-end if   
-
-deallocate(bufFromAbove,bufFromBelow)
-End Subroutine ExchangeHalo
 
 end subroutine PoissMultigrid
 
