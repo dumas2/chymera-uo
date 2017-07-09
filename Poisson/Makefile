@@ -9,7 +9,7 @@ OSLOWER = $(shell uname -s 2>/dev/null | tr [:upper:] [:lower:])
 CC = mpicc
 FC = mpif90
 
-FOPT = -O3
+FOPT = -g -fcheck=all 
 OMPFLAGS = -fopenmp 
 FINC = -fdefault-real-8 -I$(NETCDF_ROOT)/include
 
@@ -27,7 +27,7 @@ FFLAGS += $(DATA_SIZE)
 OBJS = defines_mod.o fft.o pot3.o boundary.o blktri.o io.o
 # Objects used for relaxation routine.
 OBJS_RELAX = defines_mod.o io.o multigrid.o 
-OBJS_POISS = param_mod.o fft.o pot3Mpi.o poissMult.o
+OBJS_POISS = param_mod.o fft.o pot3Mpi.o poissMult.o boundaryMPI.o
 LIBS = -L$(NETCDF_ROOT)/lib -lnetcdff
 
 #------------------------------------------------------------------
