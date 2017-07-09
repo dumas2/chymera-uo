@@ -58,14 +58,10 @@ pi = acos(-1.d0)
         if (rank==numRanks-1) then
            if((k.ne.kmax).and.(j.ne.jmax)) then
             PHI(J,K,L)=4.0d0*pi*RHO(J,K,L) ! not boundaries
-           else
-            PHI(J,K,L)=RHO(J,K,L) ! boundaries
            end if
         else
            if(j.ne.jmax) then
             PHI(J,K,L)=4.0d0*pi*RHO(J,K,L) ! not boundaries
-           else
-            PHI(J,K,L)=RHO(J,K,L) ! boundaries
            end if
         end if 
           ENDDO
@@ -73,8 +69,8 @@ pi = acos(-1.d0)
 
       ENDDO
 
-!call writeData(-1,jmax,kmax,rho(:,:,1),'rho')
-!call writeData(-1,jmax,kmax,phi(:,:,1),'phi0')
+call writeData(-1,jmax,kmax,rho(:,:,1),'rho')
+call writeData(-1,jmax,kmax,phi(:,:,1),'phi0')
 !-----------------------------------------------------------------------
 !
 !  If lmax>1 then for all j,k, calculate fourier transform of rho's
