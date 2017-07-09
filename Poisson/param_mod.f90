@@ -55,6 +55,7 @@ real    :: pindex,con2,rrr2,omcen,dencen,toverw,rof3n,zof3n,a1newz
 integer :: jreq,kzpol
 integer :: itstrt,itstop,idiag,isoadi,itype,nmodl,istor
 real*8, parameter:: dr = 5.103179588499317d-1
+real*8, parameter:: dz = 5.103179588499317d-1
 !end subroutine read_mod
 
 real    :: edif, elost, enew, grav , nprime
