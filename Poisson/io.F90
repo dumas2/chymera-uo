@@ -12,96 +12,6 @@ module io
 
 CONTAINS
 
-subroutine readDensity(A,jmax,kmax)
-! Reads in the fourier transformed density for a given mode,
-! as calculated by fft.F by a call in pot3.F
-!
-! Note: jmax and kmax must be powers of 2 for multigrid to work
-!       interior for multigrid is (1:jmax-1,1:kmax-1)
-!
-use MPI_F08, only : MPI_Comm_rank, MPI_Comm_size, MPI_COMM_WORLD
-use MPI_F08, only : MPI_Send, MPI_Recv, MPI_DOUBLE_PRECISION, MPI_Status
-implicit none
-integer, intent(in)  :: jmax,kmax
-real   , intent(inout) :: A(-1:jmax+1,-1:kmax+1) ! dimensions for multigrid, odd interior pts, 2 halo cells
-real   , allocatable :: buf(:,:)
-integer, parameter   :: fd=73
-integer              :: ir,iz,jj,kk,nr
-integer              :: rank, numRanks, bufSize, tag=11
-type(MPI_Status)     :: status
-character(len=*), parameter :: fmt="(i3,1x,i3,1x,1pe22.5)"
-
-call MPI_Comm_size(MPI_COMM_WORLD, numRanks)
-call MPI_Comm_rank(MPI_COMM_WORLD, rank)
-
-bufSize = (jmax+3)*(kmax+3)
-allocate(buf(-1:jmax+1,-1:kmax+1))
-
-! initialize so that boundaries will be zero
-buf = 0.0
-
-!! Rank 0 should read in data and then send it to cohorts
-!    - z dimension is broken into numRanks partitions
-!
-if (rank == 0) then
-  open(unit=fd, file="density.dat", FORM="FORMATTED")
-
-!  buf(:,-1) = 0.0    ! extra boundaries only needed in neighbor below
-
-  ! read in data for rank 0
-  do iz = 0, kmax
-    do ir = 0, jmax
-      read(fd,fmt) jj, kk, buf(ir,iz)
-    end do
-  end do
-  if (numRanks > 1) then   ! extra boundary cells (kmax+1) extends into neighbor above
-    do ir = 0, jmax
-      read(fd,fmt) jj, kk, buf(ir,kmax+1)
-    end do
-  else
-      buf(:,kmax+1) = 0.0     ! extra boundary cells (kmax+1) not needed
-  end if
-  
-  buf(:,-1) = buf(:,0)
-  A(:,:) = buf(:,:)      ! copy entire array
-
-  buf(:,-1) = buf(:,kmax-1)  ! lower bc for neigbor copied from last interior cell of previous
-  buf(:, 0) = buf(:,kmax  )  ! lower shared boundary for neigbor from shared upper cell of previous
-  buf(:, 1) = buf(:,kmax+1)  ! first interior cell for neigbor upper boundary cell of previous
-
-  ! read in data for other ranks and send the buffer
-  do nr = 1, numRanks-1
-    do iz = 2, kmax          ! halo and shared cell (iz=-1:0) already copied
-      do ir = 0, jmax
-        read(fd,fmt) jj, kk, buf(ir,iz)
-      end do
-    end do
-    if (nr /= numRanks-1) then
-      do ir = 0, jmax
-        read(fd,fmt) jj, kk, buf(ir,kmax+1)
-      end do
-    else
-      buf(:,kmax+1) = 0.0     ! extra boundaries only needed in neighbor above
-    end if
-    call MPI_Send(buf, bufSize, MPI_DOUBLE_PRECISION, nr, tag, MPI_COMM_WORLD)
-    buf(:,-1) = buf(:,kmax-1)  ! lower bc for neigbor copied from last interior cell of previous
-    buf(:, 0) = buf(:,kmax  )  ! lower shared boundary for neigbor from shared upper cell of previous
-    buf(:, 1) = buf(:,kmax+1)  ! first interior cell for neigbor upper boundary cell of previous
-  end do
-
-  close(fd)
-
-else  ! receiving ranks (other than rank 0)
-
-  call MPI_Recv(buf, bufSize, MPI_DOUBLE_PRECISION, 0, tag, MPI_COMM_WORLD, status)
-  A(:,:) = buf(:,:)      ! copy entire array
-
-end if
-
-deallocate(buf)
-
-end subroutine readDensity
-
 subroutine readData(A,jmax,kmax,lmax)
 ! Reads in density and calculated boundary conditions.      
 !
@@ -132,6 +42,8 @@ buf2 = 0.0
 !! Rank 0 should read in data and then send it to cohorts
 !    - z dimension is broken into numRanks partitions
 !
+
+
 if (rank == 0) then
   open(unit=fd, FORM="UNFORMATTED")
 
