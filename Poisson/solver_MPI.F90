@@ -2,7 +2,7 @@ program poissonSolverMPI
  use defines_mod
  use param_mod
  use io, only : readData, writeData
- use MPI_F08  , only : MPI_Init, MPI_Finalize, MPI_Barrier
+ use MPI_F08  , only : MPI_Init, MPI_Finalize, MPI_Barrier,MPI_Wtime
  use MPI_F08  , only : MPI_Send, MPI_Recv, MPI_DOUBLE_PRECISION, MPI_Status
  use MPI_F08  , only : MPI_Comm_rank, MPI_Comm_size, MPI_COMM_WORLD,MPI_INTEGER
 
@@ -14,7 +14,7 @@ real, allocatable :: buf2(:,:,:),buf(:,:,:),array(:,:,:),phi(:,:,:)
   real    :: denny(hj2,hk2)
   integer :: bufSize
   real    :: cvheat, curlyr, delr, delz, den
-  real    :: kwfw,phichk,redge,tmass,xmu
+  real    :: kwfw,phichk,redge,tmass,xmu,t1,t2
 
 integer :: rank, numRanks, nr,tag=17,jread
 integer :: maxtrm, isym ,igrid,j,k
@@ -120,15 +120,22 @@ end if
   REDGE  = 0.d0
 
 ! call the potential solver
+!t1 =  MPI_Wtime()
 CALL SETBDY(0,ISYM)
 CALL BDYGEN(MAXTRM,ISYM,REDGE,phi,array)
-
+!t2 =  MPI_Wtime()
+!print *, "boundary solve: ",&
+!& t2-t1,"seconds"
 !do k = -1,ksplit+1
 !  do j=jmax-2,jmax+1
 !    write(100+rank,'(i3,1x,i3,1x,e12.3)') k,j,phi(j,k,1)
 !  end do
 !end do
+!t1 =  MPI_Wtime()
 CALL POT3MPI(8,IPRINT,jmax,ksplit,lmax,array,dr,phi)
+!t2 =  MPI_Wtime()
+!print *, "potential solve: ",&
+!& t2-t1,"seconds"
 
 
   call writeData(1,jmax,ksplit,phi(:,:,1),'fin')
