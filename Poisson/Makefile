@@ -26,8 +26,8 @@ FFLAGS += $(DATA_SIZE)
 
 OBJS = defines_mod.o fft.o pot3.o boundary.o blktri.o io.o
 # Objects used for relaxation routine.
-OBJS_RELAX = defines_mod.o io.o multigrid.o 
-OBJS_POISS = param_mod.o fft.o pot3Mpi.o poissMult.o boundaryMPI.o
+OBJS_RELAX = defines_mod.o io.o multigrid.o param_mod.o 
+OBJS_POISS = fft.o pot3Mpi.o poissMult.o boundaryMPI.o
 LIBS = -L$(NETCDF_ROOT)/lib -lnetcdff
 
 #------------------------------------------------------------------

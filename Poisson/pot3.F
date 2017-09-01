@@ -21,6 +21,7 @@ C*******************************************************************************
 
       COMMON /COEFS/COEF(pot3JMAX2,pot3KMAX2,LMAX2,2)
 
+
 C A1 and B1  should be dimensioned lmax.  They're used in fft.
       DIMENSION A1(LMAX),B1(LMAX)
 
@@ -43,9 +44,10 @@ C the right thing if I do not.)
       COMMON /BLOKJ1/IWCN,IW1,IW2,IW3,IWD,IWW,IWU
 C$OMP THREADPRIVATE(/CBLKT/,/BLOKJ1/)
 
+      parameter (ldebug=0)
 
       LOGICAL  INIT_BLKTRI
-
+ 
 #if PARTICLE>0
 C$OMP PARALLEL DEFAULT(PRIVATE) SHARED(PHI,RHOTOT,COEF,
 #else
@@ -84,7 +86,7 @@ C$OMP DO
 C$OMP ENDDO
 
       open(unit=14,form='unformatted')
-      write(14) phi
+      write(14) rho
       close(14)
 C-----------------------------------------------------------------------
 C
@@ -141,7 +143,7 @@ C     Copy fourier transform back into phi array.
               IF(L.LT.N) THEN
                 PHI(J,K,L+N+1)=B1(L+1)*SF1
               ENDIF
-             write(100+L,*) j,k,L, A1(L)*SF1, B1(L)*SF1
+!            write(100+L,*) j,k,L, A1(L)*SF1, B1(L)*SF1
             ENDDO
             DO L=N+1,LMAX
               A1(L) = 0.0
@@ -212,8 +214,7 @@ C$OMP DO
           M=L-(N+1)                                                 
         ENDIF
         POWRM=(-1.0)**M
-        
-        if(l.eq.1)then
+        if((l.eq.1).and.(ldebug==1)) then
         open(unit=59,file='boundaryConditions.dat',form='FORMATTED')
          do j=2,jmax+1
          write(59,"(i3,1x,i3,1x,1pe22.15)") J,KMAX+1,PHI(J,KMAX+1,L)
@@ -229,7 +230,7 @@ C     (remember, densities are in array phi right now.)
             Y(J-1,K-1)=PIG4*PHI(J,K,L)
           ENDDO
         ENDDO                                                           
-       if(l.eq.1)then
+       if((l.eq.1).and.(ldebug==1)) then
        open(unit=53,file="density.dat", FORM="formatted")  
         DO J=1,JMAX
             write(53,"(i3,1x,i3,1x,1PE22.15)") J,2,PIG4*PHI(J,2,L)
@@ -336,6 +337,7 @@ C$OMP END PARALLEL
       print *, "calling zaxphi"
       CALL ZAXPHI(NPOINT,IPRINT)
 
+      if(ldebug==1) then
         do L = 1,9
         print *, "write solution loop"
         open(unit=90+L,form='formatted')
@@ -346,7 +348,7 @@ C$OMP END PARALLEL
         ENDDO
         close(90+L)
         end do
-
+      end if
       RETURN
       END                                                                
 
