@@ -22,18 +22,18 @@ module param_mod
       integer  jmin,jmin1,jmin2
 
 !  High resolution problem.
-      parameter (jmax=32, jmax1=jmax+1, jmax2=jmax+2)
-      parameter (kmax=16, kmax1=kmax+1, kmax2=kmax+2)
-      parameter (lmax=32,lmax2=lmax/2)
-      parameter(pot3jmax=32,pot3jmax1=pot3jmax+1,pot3jmax2=pot3jmax+2)
-      parameter(pot3kmax=16,pot3kmax1=pot3kmax+1,pot3kmax2=pot3kmax+2)
+      parameter (jmax=384, jmax1=jmax+1, jmax2=jmax+2)
+      parameter (kmax=128, kmax1=kmax+1, kmax2=kmax+2)
+      parameter (lmax=512,lmax2=lmax/2)
+      parameter(pot3jmax=384,pot3jmax1=pot3jmax+1,pot3jmax2=pot3jmax+2)
+      parameter(pot3kmax=128,pot3kmax1=pot3kmax+1,pot3kmax2=pot3kmax+2)
 
 !  Minimum radial grid point, for cutting out central star.
-      parameter (jmin=4,jmin1=jmin-1,jmin2=jmin-2)
+      parameter (jmin=12,jmin1=jmin-1,jmin2=jmin-2)
 
 !  Other parameters.
       integer hj,hk,hj1,hj2,hk1,hk2,itable
-      parameter (hj=32,hk=16,hj1=hj+1,hk1=hk+1,hj2=hj+2,hk2=hk+2)
+      parameter (hj=384,hk=128,hj1=hj+1,hk1=hk+1,hj2=hj+2,hk2=hk+2)
       parameter (lrlmax=128,lrjmax=64,lrkmax=8,lrjmax1=lrjmax+1)
       parameter (itable=100)
 
@@ -54,8 +54,10 @@ real    :: pindex,con2,rrr2,omcen,dencen,toverw,rof3n,zof3n,a1newz
 
 integer :: jreq,kzpol
 integer :: itstrt,itstop,idiag,isoadi,itype,nmodl,istor
-real*8, parameter:: dr = 5.103179588499317d-1
-real*8, parameter:: dz = 5.103179588499317d-1
+!real*8, parameter:: dr = 5.103179588499317d-1
+!real*8, parameter:: dz = 5.103179588499317d-1
+real*8, parameter:: dr = 7.489941059553437E-02 
+real*8, parameter:: dz = 7.489941059553437E-02 
 !end subroutine read_mod
 
 real    :: edif, elost, enew, grav , nprime

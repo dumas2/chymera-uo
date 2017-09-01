@@ -69,8 +69,8 @@ pi = acos(-1.d0)
 
       ENDDO
 
-call writeData(-1,jmax,kmax,rho(:,:,1),'rho')
-call writeData(-1,jmax,kmax,phi(:,:,1),'phi0')
+!call writeData(-1,jmax,kmax,rho(:,:,1),'rho')
+!call writeData(-1,jmax,kmax,phi(:,:,1),'phi0')
 !-----------------------------------------------------------------------
 !
 !  If lmax>1 then for all j,k, calculate fourier transform of rho's

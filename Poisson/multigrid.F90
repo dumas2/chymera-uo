@@ -225,7 +225,7 @@ call MPI_Comm_size(MPI_COMM_WORLD, numRanks)
 call MPI_Comm_rank(MPI_COMM_WORLD, rank)
 
    pi=acos(-1.0)
-   dtheta=2.*pi/32.
+   dtheta=2.*pi/dble(512)
    
    w = 1.3d0
 !   m1 = (cos((m-1)*dtheta)-1.)/dtheta/dtheta
@@ -305,7 +305,7 @@ call MPI_Comm_rank(MPI_COMM_WORLD, rank)
 
 
    pi=acos(-1.0)
-   dtheta = 2.0*pi/32
+   dtheta = 2.0*pi/dble(512)
    m1 = float(m)
 !  m1 = (cos((m-1)*dtheta)-1.)/dtheta/dtheta
    do i = 0,Nj

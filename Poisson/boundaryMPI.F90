@@ -41,7 +41,7 @@
   END DO
 
 pi = acos(-1.d0)
-dtheta = 2.d0*pi/lmax
+dtheta = 2.d0*pi/dble(lmax)
 
 
       ISYMA = IABS(ISYM)
@@ -361,7 +361,7 @@ call MPI_Comm_rank(MPI_COMM_WORLD, rank)
 ! shared through a module with everybody.
 tag = 17
 pi = acos(-1.d0)
-dtheta = 2.d0*pi/float(lmax)
+dtheta = 2.d0*pi/dble(lmax)
   DO J=0,JMAX+1
      R(J)=(J-1)*DR
      RHF(J)=R(J)+DR/2.0
@@ -809,7 +809,6 @@ print *, "rank", rank, "does loop", rank*ksplit+1, "to",ktop
         JJ = JPOS(JK)                                                      
         KK = KPOS(JK)                                                      
         RSPHER = RBDY(JK)                                                 
- print *, jk,jj,kk,rspher
 !                                                                       
 !                                                                       
 !      STEP FOUR:  CALCULATE THE PRODUCT DLM*BLM AND STORE RESULTS IN   

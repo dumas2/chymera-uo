@@ -12,7 +12,7 @@ program poissonSolver
   integer, PARAMETER::JKM1=2*POT3JMAX+POT3KMAX-1
 !$ integer OMP_GET_MAX_THREADS
   dimension denny(hj2,hk2)
-
+  real :: start_time, stop_time
 !...  Read in some run parameters.
       OPEN(UNIT=5,FILE='fort.5',STATUS='OLD')
 
@@ -133,21 +133,32 @@ program poissonSolver
 !!...Calling the potential solver now.
   IPRINT = 1
   REDGE  = 0.d0
+!call cpu_time(start_time)
 !$OMP PARALLEL DEFAULT(SHARED)
 !&
 !$OMP&  SHARED(JKMAX,ISYM)
   CALL SETBDY(0,ISYM)
 !$OMP END PARALLEL
+
   CALL BDYGEN(MAXTRM,ISYM,REDGE)
+!call cpu_time(stop_time)
+! print *, "BoundaryGen time:", &
+!      stop_time - start_time, "seconds"
+
+
+!call cpu_time(start_time)
   CALL POT3(8,IPRINT)
+!call cpu_time(stop_time)
+! print *, "PotSolve time:", &
+!      stop_time - start_time, "seconds"
 
 !!...Write gravitational potential to output file.
-  write(x1,'(i6.6)')ITSTOP
-  potfile='phi3d.'//trim(x1)
-  OPEN(UNIT=23,FILE=potfile,FORM='UNFORMATTED')
-  write(23)phi
-  write(23)time
-  CLOSE(23)
+!  write(x1,'(i6.6)')ITSTOP
+!  potfile='phi3d.'//trim(x1)
+!!  OPEN(UNIT=23,FILE=potfile,FORM='UNFORMATTED')
+!  write(23)phi
+!  write(23)time
+!  CLOSE(23)
 
 end program poissonSolver
 

@@ -31,10 +31,10 @@ integer, intent(in) :: Nj, Nk, Nl, l
 
 integer   :: i,k,mn,ir,iz,p,j,m
 integer   :: rank, numRanks, nr, loop
-integer   :: nsteps = 2, debug = 1
+integer   :: nsteps = 2, debug = 0
 
 integer   :: msteps = 200
-integer   :: diag = 100
+integer   :: diag = 1000
 real, allocatable :: V1h(:,:)  , Tmp(:,:)  , V2h(:,:)   , error(:,:)
 real, allocatable :: Resid(:,:), rho2h(:,:), resid2(:,:), Tmp2(:,:)
 
